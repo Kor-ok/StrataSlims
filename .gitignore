@@ -16,4 +16,7 @@ wheels/
 # Logs
 *.log
 
+# IDE files
+.vscode/
+
 
