@@ -7,6 +7,8 @@ from discord import app_commands
 from config import get_test_guild_id, get_greenlist, get_bot_token
 from gen_music import handle_music_command
 from post_songs import handle_post_songs_command
+from booststyle import handle_booststyle_command
+from mockinteraction import handle_mock_command
 
 
 TEST_GUILD = discord.Object(get_test_guild_id())
@@ -39,8 +41,16 @@ async def music(interaction: discord.Interaction):
     # Delegate to song.py handler
     await handle_music_command(interaction)
 
-@client.tree.command(guild=TEST_GUILD, description='Songs')
-async def songs(interaction: discord.Interaction, task_id: str = "348acc677932cc378c4ddb3225ab74e2"):
-    await handle_post_songs_command(interaction, task_id)
+# @client.tree.command(guild=TEST_GUILD, description='Songs')
+# async def songs(interaction: discord.Interaction, task_id: str = "348acc677932cc378c4ddb3225ab74e2"):
+#     await handle_post_songs_command(interaction, task_id)
+    
+@client.tree.command(guild=TEST_GUILD, description='Boost Style')
+async def booststyle(interaction: discord.Interaction):
+    await handle_booststyle_command(interaction)
+
+# @client.tree.command(guild=TEST_GUILD, description='Mock Command')
+# async def mock(interaction: discord.Interaction):
+#     await handle_mock_command(interaction)
 
 client.run(get_bot_token())

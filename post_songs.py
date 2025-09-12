@@ -7,19 +7,18 @@ import aiohttp
 
 from sunoapi import get_task_results
 
-
 class Songs(discord.ui.LayoutView):
     def __init__(self, task_id: str, results: dict, user_id: int,
-                 audio1_ref: Optional[str] = None,
-                 audio2_ref: Optional[str] = None):
+                 audio1_ref: str,
+                 audio2_ref: str):
         super().__init__()
         self.timeout = None
         self.task_id = task_id
         self.results = results
         self.user_id = user_id
 
-        # === Section: Infobox, Thumbnail ===
-        self.infobox1 = discord.ui.TextDisplay(f"{self.results['song_title_1']}")
+        # === Section: SONG 1 =================
+        self.infobox1 = discord.ui.TextDisplay(f"## {self.results['song_title_1']}")
         self.thumbnail1 = discord.ui.Thumbnail(
             media=f'{self.results["song_image_url_1"]}'
         )
@@ -27,15 +26,13 @@ class Songs(discord.ui.LayoutView):
             self.infobox1,
             accessory=self.thumbnail1
         )
-        # Audio 1: prefer attachment reference; else use URL via File
-        if audio1_ref:
-            self.audio_1 = discord.ui.File(media=audio1_ref)
-        else:
-            self.audio_1 = discord.ui.File(media=self.results['song_audio_url_1'])
+        self.audio_1 = discord.ui.File(media=audio1_ref)
         # ====================================
+        
         self.divider = discord.ui.Separator()
-        # === Section: Infobox, Thumbnail ===
-        self.infobox2 = discord.ui.TextDisplay(f"{self.results['song_title_2']}")
+        
+        # === Section: SONG 2 ================
+        self.infobox2 = discord.ui.TextDisplay(f"## {self.results['song_title_2']}")
         self.thumbnail2 = discord.ui.Thumbnail(
             media=f'{self.results["song_image_url_2"]}'
         )
@@ -43,10 +40,7 @@ class Songs(discord.ui.LayoutView):
             self.infobox2,
             accessory=self.thumbnail2
         )
-        if audio2_ref:
-            self.audio_2 = discord.ui.File(media=audio2_ref)
-        else:
-            self.audio_2 = discord.ui.File(media=self.results['song_audio_url_2'])
+        self.audio_2 = discord.ui.File(media=audio2_ref)
         # ====================================
 
         container = discord.ui.Container(
@@ -90,19 +84,6 @@ async def url_to_file(url: str, filename: str, *, max_bytes: int = 8 * 1024 * 10
     buf.seek(0)
     return discord.File(buf, filename=filename)
 
-
-def _guess_filename_from_url(url: str, fallback: str) -> str:
-    # Basic guess: strip query, take last path segment
-    try:
-        base = url.split('?')[0]
-        name = base.rsplit('/', 1)[-1]
-        if not name or '.' not in name:
-            return fallback
-        return name
-    except Exception:
-        return fallback
-
-
 async def handle_post_songs_command(
     interaction: discord.Interaction,
     task_id: str) -> None:
@@ -133,8 +114,9 @@ async def handle_post_songs_command(
         "song_audio_url_2": task_results["data"]["response"]["sunoData"][1]["audioUrl"]
     }
     # Prepare audio attachments for Discord's inline player
-    fn1 = _guess_filename_from_url(results["song_audio_url_1"], "track1.mp3")
-    fn2 = _guess_filename_from_url(results["song_audio_url_2"], "track2.mp3")
+    fn_spaces_to_dashes = lambda s: s.replace(' ', '_')
+    fn1 = f"{fn_spaces_to_dashes(results['song_title_1'])}_1.mp3"
+    fn2 = f"{fn_spaces_to_dashes(results['song_title_2'])}_2.mp3"
     file1 = await url_to_file(results["song_audio_url_1"], fn1)
     file2 = await url_to_file(results["song_audio_url_2"], fn2)
     file_refs = []

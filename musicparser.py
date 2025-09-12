@@ -51,6 +51,15 @@ def validate_song_interaction_data(view: LayoutView) -> bool:
 
     return mandatory_fields_filled
 
+def  validate_booststyle_interaction_data(view: LayoutView) -> bool:
+    # Check if all required fields are filled
+    
+    mandatory_fields_filled = all([
+        get_from_infobox(view.info_userstyle.content) != '', # type: ignore
+    ])
+
+    return mandatory_fields_filled
+
 def build_music_payload(view: LayoutView) -> dict:
     # Build required payload keys first
     payload: dict = {

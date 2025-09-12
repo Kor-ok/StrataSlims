@@ -3,6 +3,7 @@ import time
 import datetime
 import json
 import asyncio
+from typing import Optional
 
 BASE_URL = 'https://api.sunoapi.org/api/v1'
 mock_time_start = time.time()
@@ -127,5 +128,37 @@ def mock_get_task_status(task_id: str) -> dict:
         return {"code": 404, "msg": "Task not found", "data": {}}
     return _generate_mock_status_response(task_id, pending=mock_pending)
 
+async def get_remaining_credits() -> str:
+    # Simulate fetching remaining credits
+    credits = random.randint(0, 100)
+    # Simulate a delay
+    await asyncio.sleep(1)
+    return str(credits)
 
-__all__ = ["send_mock_payload", "mock_wait_for_completion"]
+async def get_credits_resilient(
+	attempts: int = 3,
+	timeout_seconds: float = 20.0,
+	backoff_seconds: float = 0.5,
+	fallback: str = "unknown",
+) -> str:
+	async def _with_timeout():
+		return await asyncio.wait_for(get_remaining_credits(), timeout=timeout_seconds)
+
+	last_err: Optional[BaseException] = None
+	for i in range(attempts):
+		try:
+			return str(await _with_timeout())
+		except Exception as e:
+			last_err = e
+			if i < attempts - 1:
+				# exponential backoff between attempts
+				await asyncio.sleep(backoff_seconds * (2 ** i))
+	# Log best-effort and return fallback
+	try:
+		import logging
+		logging.getLogger(__name__).warning(
+			"get_remaining_credits failed after %s attempts: %s", attempts, last_err
+		)
+	except Exception:
+		pass
+	return fallback

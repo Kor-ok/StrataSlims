@@ -38,4 +38,25 @@ def get_task_results(task_id: str) -> None:
     print(f"Song Audio URL 1: {results['song_audio_url_1']}")
     print(f"Song Audio URL 2: {results['song_audio_url_2']}")
 
-get_task_results("348acc677932cc378c4ddb3225ab74e2")
+def boost_style(text: str) -> None:
+    url = f"{BASE_URL}/style/generate"
+    payload = {
+        "content": f"{text}",
+    }
+    headers = {
+        "Authorization": f"Bearer {get_suno_token()}",
+        "Content-Type": "application/json"
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code == 200:
+        with open("booststyle.log", "a") as f:
+            f.write(f"{datetime.datetime.now()}: {text} -> {json.dumps(response.json(), indent=4)}\n")
+        print("Boosted style response:")
+        print(json.dumps(response.json(), indent=4))
+    else:
+        print(f"Error: {response.status_code} - {response.json().get('msg', 'Unknown error')}")
+        
+        
+# style_text = "Electro-pop with a dash of retro chipwave"
+
+# boost_style(style_text)
