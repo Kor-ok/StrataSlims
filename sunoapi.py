@@ -1,5 +1,7 @@
 import asyncio
 import time
+import datetime
+import json
 
 import requests
 
@@ -124,3 +126,19 @@ async def wait_for_completion(task_id: str, max_wait_time: int = 600, poll_inter
         # PENDING or other statuses
         await asyncio.sleep(poll_interval)
     raise Exception('Generation timeout')
+
+async def get_task_results(task_id: str) -> dict:
+    url = f"{BASE_URL}/generate/record-info?taskId={task_id}"
+    headers = {
+    "Authorization": f"Bearer {get_suno_token()}"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        results = response.json()
+        # Write as pretty JSON to task_results.log
+        with open("task_results.log", "a") as f:
+            f.write(f"{datetime.datetime.now()}: {task_id} -> {json.dumps(results, indent=4)}\n")
+        return results
+    else:
+        print(f"Error: {response.status_code} - {response.text}")
+        return {"error": {"msg": f"Failed to retrieve task results"}}  # Return an error dict
