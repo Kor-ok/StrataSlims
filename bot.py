@@ -17,7 +17,7 @@ class StrataSlims(discord.Client):
     user: discord.ClientUser # type: ignore
 
     def __init__(self) -> None:
-        activity = discord.Activity(name='remotely', type=discord.ActivityType.listening)
+        activity = discord.Activity(name='remotely', type=discord.ActivityType.watching)
         intents = discord.Intents.default()
         super().__init__(intents=intents, activity=activity)
 
