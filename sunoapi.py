@@ -183,17 +183,35 @@ async def boost_style(text: str) -> dict:
         "Content-Type": "application/json"
     }
     response = requests.post(url, json=payload, headers=headers)
-    if response.status_code == 200:
-        with open("booststyle.log", "a") as f:
-            f.write(f"{datetime.datetime.now()}: {text} -> {json.dumps(response.json(), indent=4)}\n")
-        result = {
-            "task_id": response.json()['data']['taskId'],
-            "result": response.json()['data']['result'],
-            "creditsRemaining": response.json()['data']['creditsRemaining'],
-            "errorCode": response.json()['data']['errorCode'],
-            "errorMessage": response.json()['data']['errorMessage']
-        }
-        return result
-    else:
-        print(f"Error: {response.status_code} - {response.json().get('msg', 'Unknown error')}")
-        return {"error": {"msg": f"Failed to boost style"}}
+    
+    # Try to parse JSON safely
+    try:
+        body = response.json()
+    except ValueError:
+        print(f"Error: {response.status_code} - Non-JSON response")
+        return {"error": {"msg": "Failed to boost style"}}
+
+    if response.status_code != 200:
+        msg = body.get("msg") or body.get("message") or "Unknown error"
+        print(f"Error: {response.status_code} - {msg}")
+        return {"error": {"msg": "Failed to boost style"}}
+
+    data = body.get("data") or {}
+
+    # Coalesce nullable fields to safe defaults
+    task_id = data.get("taskId") or ""
+    result = data.get("result") or {}            # {} instead of None
+    credits_remaining = data.get("creditsRemaining")
+    error_code = data.get("errorCode")            # keep None if null
+    error_message = data.get("errorMessage") or ""  # "" instead of None
+
+    with open("booststyle.log", "a") as f:
+        f.write(f"{datetime.datetime.now()}: {text} -> {json.dumps(body, indent=4)}\n")
+
+    return {
+        "task_id": task_id,
+        "result": result,
+        "creditsRemaining": credits_remaining,
+        "errorCode": error_code,
+        "errorMessage": error_message,
+    }

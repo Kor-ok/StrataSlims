@@ -32,8 +32,8 @@ class BoostStyleButtons(discord.ui.ActionRow):
         # Disable the button to prevent multiple clicks
         button.disabled = True
         try:
-            # Start background task to fetch results and update view
-            _get_boost_style_results.start(interaction, self.__view)
+            # No longer a background task; await directly
+            await _get_boost_style_results(interaction, self.__view)
         except Exception as e:
             print(f"Error starting boost style task: {e}")
             traceback.print_exc()
@@ -141,12 +141,11 @@ async def _update_credits_after_send(interaction: discord.Interaction, view: 'Bo
 	# Update the state and UI using the view helper
 	view.set_credits(credits)
 	try:
-		await interaction.edit_original_response(view=view)
+		await interaction.response.edit_message(view=view)
 	except Exception:
 		# The original interaction may no longer be editable; ignore silently.
 		pass
 
-@tasks.loop(count=1)
 async def _get_boost_style_results(interaction: discord.Interaction, view: 'BoostStyle') -> None:
     result = await boost_style(get_from_infobox(view.info_userstyle.content))
     boosted_style_text = result.get("result")
@@ -156,7 +155,7 @@ async def _get_boost_style_results(interaction: discord.Interaction, view: 'Boos
     # reenable the button
     view.buttons.button_boost_style.disabled = False
     try:
-        await interaction.edit_original_response(view=view)
+        await interaction.response.edit_message(view=view)
     except Exception as e:
         print(f"Error fetching boost style results: {e}")
         return None
