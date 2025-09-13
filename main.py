@@ -33,7 +33,7 @@ def main():
     
     try:
         # Import bot components after env check
-        from bot import MyClient
+        from bot import StrataSlims
         from config import get_bot_token
         
         # Get bot token from configuration
@@ -45,7 +45,7 @@ def main():
             sys.exit(1)
         
         # Create and run the Discord client
-        client = MyClient()
+        client = StrataSlims()
         client.run(token)
         
     except KeyboardInterrupt:

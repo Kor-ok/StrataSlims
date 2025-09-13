@@ -1,7 +1,6 @@
 import asyncio
-import io
 import traceback
-from typing import Optional, cast
+from typing import Optional
 
 import discord
 from discord.ext import tasks

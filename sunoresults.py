@@ -17,7 +17,6 @@ from typing import Any, Dict, List
 
 LOG_FILE = Path("mockresult.log")
 
-
 @dataclass
 class Track:
     id: str
