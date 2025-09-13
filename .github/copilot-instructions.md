@@ -73,22 +73,6 @@ Always reference these instructions first and fallback to search or bash command
 - Test configuration loading: `python -c "from config import get_bot_token; print('Config loading works')"`
 - **Important**: Always remove test .env files before committing to avoid exposing test tokens
 
-### Validation Without Network Access
-- **Syntax Validation**: `python -m py_compile *.py` -- works offline, validates all Python syntax
-- **Code Structure Check**: `python main.py` -- runs basic functionality without dependencies
-- **Dependency Availability Check**: 
-  ```python
-  python -c "
-  try:
-      import discord
-      print('discord.py available - full bot testing possible')
-  except ImportError:
-      print('discord.py not available - use syntax-only validation')
-  "
-  ```
-- **Import Chain Analysis**: Review import statements manually for circular dependencies or missing modules
-- **Configuration Validation**: Test config.py functions with test environment variables
-
 ## Common Tasks
 
 ### Repository Structure
@@ -184,17 +168,13 @@ yarl==1.20.1
 - **Network Requirements**: Bot needs internet access for Discord and Suno API calls
 - **Database**: No persistent storage - all data is transient
 
-### Development Considerations
-- **Code Quality**: Many existing linting violations - maintain current style when modifying
-- **Environment Variables**: All secrets must be in `.env` file, never committed to git
-- **API Rate Limits**: Suno API has credit/rate limiting that affects functionality
-- **Discord Permissions**: Bot requires specific Discord permissions for slash commands
-
 ### Build and Deployment Notes
-- **No Build Process**: Pure Python project, no compilation required
-- **Dependencies Only**: Main setup step is installing Python packages
-- **Runtime Configuration**: All configuration via environment variables
-- **Simple Deployment**: Can run anywhere Python 3.9+ and dependencies are available
+- **Hosting Environment**: Google Compute Engine e2-micro (2 vCPUs, 1 GB memory), OS image debian-12-bookworm-v20240611
+- **Cost**: No running cost (fits within current free tier/credits)
+- **Resource Considerations**:
+  - Memory is limited; avoid running additional heavy processes on the instance.
+  - Prefer lightweight process management (e.g., systemd) and enable swap if needed.
+  - Long-running pip installs can exceed memory; use `--no-cache-dir` if necessary.
 
 ### Time Expectations
 - **Virtual Environment Creation**: ~3 seconds

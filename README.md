@@ -88,6 +88,34 @@ When running as an MCP server, StrataSlims provides these tools:
 - **check_credits**: Check remaining Suno AI credits  
 - **parse_music_request**: Parse and validate music generation requests
 
+## Deployment
+
+The bot is currently hosted on Google Compute Engine with the following configuration:
+
+- Instance: e2-micro (2 vCPUs, 1 GB memory)
+- OS image: debian-12-bookworm-v20240611
+- Cost: no running cost (fits within current free tier/credits)
+- Notes:
+  - The e2-micro has limited memory. Avoid running additional heavy processes on the same VM.
+  - Prefer running the bot and MCP server as separate processes if needed, but be mindful of RAM limits.
+  - Use swap or lightweight process managers (e.g., systemd) if stability issues arise under memory pressure.
+
+Basic start commands (example):
+
+```bash
+# From project root on the VM
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Run bot
+python main.py
+
+# Run MCP server (optional)
+python mcp_server.py
+```
+
 ## MCP Configuration
 
 To use StrataSlims as an MCP server, add this configuration to your MCP client:

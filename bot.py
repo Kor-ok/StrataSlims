@@ -5,6 +5,10 @@ from config import get_test_guild_id, get_greenlist, get_bot_token
 from gen_music import handle_music_command
 from booststyle import handle_booststyle_command
 
+"""
+sudo supervisorctl restart strataslims
+"""
+
 TEST_GUILD = discord.Object(get_test_guild_id())
 _greenlist = get_greenlist()
 GREENLIST = [discord.Object(id=user_id) for user_id in _greenlist]
