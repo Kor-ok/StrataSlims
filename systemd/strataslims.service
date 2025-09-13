@@ -1,0 +1,21 @@
+[Unit]
+Description=StrataSlims Discord Bot (with auto-update)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=korokchatterjee
+WorkingDirectory=/home/korokchatterjee/StrataSlims
+Environment=PYTHONUNBUFFERED=1
+Environment=LC_ALL=C.UTF-8
+Environment=LANG=C.UTF-8
+ExecStart=/bin/bash -lc '/home/korokchatterjee/StrataSlims/run_with_update.sh'
+ExecStopPost=/usr/bin/env python3 /home/korokchatterjee/StrataSlims/notify_preemption.py
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

@@ -23,9 +23,9 @@ class StrataSlims(discord.Client):
 
         self.tree = app_commands.CommandTree(self)
 
-    async def on_ready(self):
-        print(f'Logged in as {self.user} (ID: {self.user.id})')
-        print('------')
+    # async def on_ready(self):
+    #     print(f'Logged in as {self.user} (ID: {self.user.id})')
+    #     print('------')
 
     async def setup_hook(self) -> None:
         await self.tree.sync(guild=TEST_GUILD)
@@ -34,7 +34,6 @@ client = StrataSlims()
 
 @client.tree.command(guild=TEST_GUILD, description='Music')
 async def music(interaction: discord.Interaction):
-    # Delegate to song.py handler
     await handle_music_command(interaction)
     
 @client.tree.command(guild=TEST_GUILD, description='Boost Style')
