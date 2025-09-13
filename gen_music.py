@@ -381,9 +381,9 @@ async def _check_music_gen_results(interaction: discord.Interaction,
   
 		_check_music_gen_results.stop()
 		return
-	status = task_results.get("data", {}).get("status")
+	status = (task_results.get('data', {}).get('status') or '').strip().upper()
 	print(f'Status: {status}')
-	if status == "SUCCESS":
+	if status in {'SUCCESS'}:
 		# Stop the loop
 		_check_music_gen_results.stop()
 		await toggle_button_states(interaction, view, is_generating=False)
@@ -399,14 +399,13 @@ async def _check_music_gen_results(interaction: discord.Interaction,
 		await post_music_results(channel, results, interaction)
 
  	# Else if not pending or first success, something went wrong
-	elif status not in ["PENDING", "FIRST_SUCCESS"]:
+	elif status not in ["PENDING", "FIRST_SUCCESS", "TEXT_SUCCESS"]:
 		try:
 			await interaction.followup.send(f"Music generation failed with status: {status}", ephemeral=True)
 		except Exception:
 			pass
-		view.buttons.submit_button.disabled = False
 		try:
-			await interaction.response.edit_message(view=view)
+			await toggle_button_states(interaction, view, is_generating=False)
 		except Exception:
 			pass
 

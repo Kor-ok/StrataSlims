@@ -154,7 +154,7 @@ async def _get_boost_style_results(interaction: discord.Interaction, view: 'Boos
     view.info_boostedstyle.content = send_to_infobox(str(boosted_style_text), "Boosted Style:")
     view.set_credits(str(remaining_credits))
     # reenable the button
-    # view.buttons.button_boost_style.disabled = False
+    view.buttons.button_boost_style.disabled = False
     try:
         await interaction.edit_original_response(view=view)
     except Exception as e:

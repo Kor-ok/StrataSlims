@@ -161,8 +161,10 @@ async def get_task_results(task_id: str) -> dict:
         results = response.json()
         # Write as pretty JSON to task_results.log
         if results.get('data', {}).get('status') in ['SUCCESS']:
-            with open("task_results.log", "a") as f:
-                f.write(f"{datetime.datetime.now()}: {task_id} -> {json.dumps(results, indent=4)}\n")
+            status = (results.get('data', {}).get('status') or '').strip().upper()
+            if status in {'SUCCESS'}:
+                with open("task_results.log", "a") as f:
+                    f.write(f"{datetime.datetime.now()}: {task_id} -> {json.dumps(results, indent=4)}\n")
         return results
     else:
         print(f"Error: {response.status_code} - {response.text}")
@@ -187,7 +189,9 @@ async def boost_style(text: str) -> dict:
         result = {
             "task_id": response.json()['data']['taskId'],
             "result": response.json()['data']['result'],
-            "creditsRemaining": response.json()['data']['creditsRemaining']
+            "creditsRemaining": response.json()['data']['creditsRemaining'],
+            "errorCode": response.json()['data']['errorCode'],
+            "errorMessage": response.json()['data']['errorMessage']
         }
         return result
     else:
