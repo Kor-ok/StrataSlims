@@ -6,15 +6,17 @@ import asyncio
 import discord
 from discord.ext import tasks
 
-from musicparser import (
+from bot.musicparser import (
 	build_music_payload,
 	validate_song_interaction_data,
 	send_to_infobox,
 	get_from_infobox,
+	build_booststyle_payload,
 )
-from sunoapi import get_remaining_credits, generate_music, get_task_results
-from post_songs import url_to_file
+from bot.sunoapi import get_remaining_credits, generate_music, get_task_results, generate_boosted_style
+from bot.post_songs import url_to_file
 
+HELP_TEXT = 'Helpful Info'
 
 class MusicGenButtons(discord.ui.ActionRow):
 	def __init__(self, view: 'MusicGen') -> None:
@@ -24,6 +26,39 @@ class MusicGenButtons(discord.ui.ActionRow):
 	@discord.ui.button(label='Details', style=discord.ButtonStyle.primary, custom_id='strata_song_buttons:details')
 	async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:  # type: ignore[override]
 		await interaction.response.send_modal(Details(self.__view))
+  
+	@discord.ui.button(label='Boost Style', style=discord.ButtonStyle.success, disabled=True, custom_id='strata_song_buttons:booststyle')
+	async def boost_style_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:  # type: ignore[override]
+		# First Check that there is content in self.__view.info_style
+		style_content = get_from_infobox(self.__view.info_style.content) if self.__view.info_style.content else ""
+		if not style_content:
+			await interaction.response.send_message(
+				"Please provide a Style in the Details first.", 
+				ephemeral=True,
+				delete_after=10
+			)
+			return
+		style_boost_payload = build_booststyle_payload(self.__view)
+		print(f"Generated boost style payload:\n {json.dumps(style_boost_payload, indent=4)}")
+		
+		await toggle_button_states(interaction, self.__view, is_generating=True)
+  
+		response = await generate_boosted_style(style_boost_payload) # ===================== Uncomment FOR MOCK TESTING
+		# response = {				
+		#     "result": "Opening with a crisp snare drum cadence, the song features a lone fife carrying a soaring Celtic-inspired melody over a stately march tempo. The absurdly patriotic male vocals command with bold phrasing, rising above the sparse arrangement. Dynamic shifts emphasize unison hits, ending with a stirring flute flourish.",
+		#     "creditsRemaining": 864.8
+		# 	}
+		if 'error' in response:
+			await toggle_button_states(interaction, self.__view, is_generating=False)
+			await interaction.followup.send(f"Error boosting style: {response['error']['msg']}", ephemeral=True)
+			
+			return
+		generated_boosted_style = response['result']
+		remaining_credits = response['creditsRemaining']
+		self.__view.set_credits(remaining_credits)
+		self.__view.info_boosted_style.content = send_to_infobox(generated_boosted_style, "Boosted Style:")
+		await toggle_button_states(interaction, self.__view, is_generating=False)
+		await interaction.edit_original_response(view=self.__view)
 
 	@discord.ui.button(label='Extras', style=discord.ButtonStyle.secondary, custom_id='strata_song_buttons:extras')
 	async def extras_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:  # type: ignore[override]
@@ -62,7 +97,7 @@ class MusicGenButtons(discord.ui.ActionRow):
 				return
 		# Build the payload from the view state
 		payload = build_music_payload(self.__view)
-		print(f"Generated payload:\n {json.dumps(payload, indent=4)}")
+		print(f"Generated music gen payload:\n {json.dumps(payload, indent=4)}")
 		
 		await toggle_button_states(interaction, self.__view, is_generating=True)
 		
@@ -97,11 +132,11 @@ class MusicGenButtons(discord.ui.ActionRow):
 			if isinstance(channel, discord.TextChannel):
 				await channel.send(content="An error occurred while processing your request.")
             
-	@discord.ui.button(label='Close', style=discord.ButtonStyle.danger, custom_id='strata_song_buttons:close')
-	async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:  # type: ignore[override]
-		# Delete the Song view message
-		await interaction.response.edit_message(view=self.__view, delete_after=1)
-		self.__view.stop()
+	# @discord.ui.button(label='Close', style=discord.ButtonStyle.danger, custom_id='strata_song_buttons:close')
+	# async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:  # type: ignore[override]
+	# 	# Delete the Song view message
+	# 	await interaction.response.edit_message(view=self.__view, delete_after=1)
+	# 	self.__view.stop()
 
 
 class Details(discord.ui.Modal, title='Music Details'):
@@ -141,6 +176,9 @@ class Details(discord.ui.Modal, title='Music Details'):
 
 	async def on_submit(self, interaction: discord.Interaction, /) -> None:
 		self.__view.info_title.content = send_to_infobox(str(self.name.value), "Title:")
+		# If the new style value is different from the previous one, reset the boosted style
+		if self.style.value != get_from_infobox(self.__view.info_style.content):
+			self.__view.info_boosted_style.content = "-"
 		self.__view.info_style.content = send_to_infobox(str(self.style.value), "Style:")
 		self.__view.info_lyrics.content = send_to_infobox(str(self.lyrics.value), "Lyrics:")
 		await self.__view.validate_submit()
@@ -263,7 +301,7 @@ class MusicGen(discord.ui.LayoutView):
 		# Persist the initially provided channel id (may be 0 / falsy if none)
 		self.selected_channel_id = selected_channel_id or None
 		self.infobox = discord.ui.TextDisplay(
-			f'Helpful Information.\n***Credits Remaining:*** `{credits}`'
+			f'{HELP_TEXT}\n***Credits Remaining:*** `{credits}`'
 		)
 		self.thumbnail = discord.ui.Thumbnail(
 			media='https://cdn.discordapp.com/attachments/1415112547484438701/1415112547748544635/logo.png'
@@ -274,6 +312,7 @@ class MusicGen(discord.ui.LayoutView):
 		# ===========
 		self.info_title = discord.ui.TextDisplay('Title:')
 		self.info_style = discord.ui.TextDisplay('Style:')
+		self.info_boosted_style = discord.ui.TextDisplay('-')
 		self.info_lyrics = discord.ui.TextDisplay('Lyrics:')
 		# ===========
 		self.extras_header = discord.ui.TextDisplay('Optional Extras:')
@@ -295,6 +334,7 @@ class MusicGen(discord.ui.LayoutView):
 										 self.divider,
 										 self.info_title,
 										 self.info_style,
+										 self.info_boosted_style,
 										 self.info_lyrics,
 										 self.divider,
 										 self.extras_header,
@@ -334,7 +374,7 @@ class MusicGen(discord.ui.LayoutView):
 		self._credits = parsed
 		# Update UI text
 		shown = credits_str if credits_str else "unknown"
-		self.infobox.content = f'Helpful Information.\n***Credits Remaining:*** `{shown}`'
+		self.infobox.content = f'{HELP_TEXT}\n***Credits Remaining:*** `{shown}`'
 		# Re-validate submit enablement
 		# Note: validate_submit is async; schedule best-effort if running in loop
 		try:
@@ -353,6 +393,13 @@ class MusicGen(discord.ui.LayoutView):
 			submit_button.disabled = False
 		else:
 			submit_button.disabled = True
+		# Enable the Boost Style button if style is filled in
+		boost_button = self.buttons.boost_style_button
+		style_content = get_from_infobox(self.info_style.content) if self.info_style.content else ""
+		if style_content:
+			boost_button.disabled = False
+		else:
+			boost_button.disabled = True
 
 @tasks.loop(count=1)
 async def _update_credits_after_send(interaction: discord.Interaction, view: 'MusicGen') -> None:
@@ -467,7 +514,8 @@ async def toggle_button_states(interaction: discord.Interaction, view: 'MusicGen
     details_button = view.buttons.details_button
     extras_button = view.buttons.extras_button
     submit_button = view.buttons.submit_button
-    close_button = view.buttons.close_button
+    boost_style_button = view.buttons.boost_style_button
+    # close_button = view.buttons.close_button
     
     channel_selector = view.channel_selector.select_channel
 
@@ -475,7 +523,8 @@ async def toggle_button_states(interaction: discord.Interaction, view: 'MusicGen
         details_button.disabled = True
         extras_button.disabled = True
         submit_button.disabled = True
-        close_button.disabled = True
+        boost_style_button.disabled = True
+        # close_button.disabled = True
         channel_selector.disabled = True
         submit_button.label = "Generating..."
     else:
@@ -483,7 +532,7 @@ async def toggle_button_states(interaction: discord.Interaction, view: 'MusicGen
         is_valid = validate_song_interaction_data(view)
         details_button.disabled = False
         extras_button.disabled = False
-        close_button.disabled = False
+        # close_button.disabled = False
         channel_selector.disabled = False
         submit_button.disabled = not is_valid
         submit_button.label = "Submit"

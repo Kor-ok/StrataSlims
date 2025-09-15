@@ -5,9 +5,9 @@ from typing import Optional
 import discord
 from discord.ext import tasks
 
-from sunoapi import boost_style, get_remaining_credits
+from bot.sunoapi import boost_style, get_remaining_credits
 
-from musicparser import (
+from bot.musicparser import (
 	send_to_infobox,
 	get_from_infobox,
     validate_booststyle_interaction_data

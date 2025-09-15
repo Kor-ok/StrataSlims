@@ -61,10 +61,21 @@ def  validate_booststyle_interaction_data(view: LayoutView) -> bool:
     return mandatory_fields_filled
 
 def build_music_payload(view: LayoutView) -> dict:
+    # Helper to decide if a field is effectively empty / placeholder
+    def _is_empty(raw: str) -> bool:
+        return raw == '-' or get_from_infobox(raw) == ''
+    
+    # Logic for using either info_style or info_boosted_style
+    # If info_boosted_style is not '-' and not empty, use it instead of info_style
+    style_raw = view.info_style.content  # type: ignore
+    boosted_style_raw = view.info_boosted_style.content  # type: ignore
+    if not _is_empty(boosted_style_raw):
+        style_raw = boosted_style_raw
+        
     # Build required payload keys first
     payload: dict = {
         "prompt": get_from_infobox(view.info_lyrics.content),  # type: ignore
-        "style": get_from_infobox(view.info_style.content),    # type: ignore
+        "style": get_from_infobox(style_raw),    # type: ignore
         "title": get_from_infobox(view.info_title.content),    # type: ignore
         "customMode": True,
         "instrumental": False,
@@ -72,9 +83,6 @@ def build_music_payload(view: LayoutView) -> dict:
         "callBackUrl": webhook_bot,
     }
 
-    # Helper to decide if a field is effectively empty / placeholder
-    def _is_empty(raw: str) -> bool:
-        return raw == '-' or get_from_infobox(raw) == ''
 
     # Optional: negativeTags
     neg_raw = view.info_negatives.content  # type: ignore
@@ -103,8 +111,15 @@ def build_music_payload(view: LayoutView) -> dict:
 
     return payload
 
+def build_booststyle_payload(view: LayoutView) -> dict:
+    payload = {
+        "content": get_from_infobox(view.info_style.content),  # type: ignore
+    }
+    return payload
+
 __all__ = ["send_to_infobox", 
            "get_from_infobox",
             "validate_song_interaction_data",
-            "build_music_payload"
+            "build_music_payload",
+            "build_booststyle_payload",
            ]

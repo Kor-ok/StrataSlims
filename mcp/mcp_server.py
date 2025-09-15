@@ -122,7 +122,7 @@ class StrataSlimsMCPServer:
         """Generate music using Suno AI."""
         try:
             # Import here to avoid circular imports
-            from sunoapi import generate_music, wait_for_completion
+            from bot.sunoapi import generate_music, wait_for_completion
             
             prompt = arguments.get("prompt", "")
             style = arguments.get("style", "pop")
@@ -147,7 +147,7 @@ class StrataSlimsMCPServer:
     async def _check_credits(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Check remaining Suno AI credits."""
         try:
-            from sunoapi import get_remaining_credits
+            from bot.sunoapi import get_remaining_credits
             
             credits = await get_remaining_credits()
             
@@ -165,7 +165,7 @@ class StrataSlimsMCPServer:
     async def _parse_music_request(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Parse music generation request text."""
         try:
-            from musicparser import parse_music_prompt
+            from bot.musicparser import parse_music_prompt
             
             text = arguments.get("text", "")
             

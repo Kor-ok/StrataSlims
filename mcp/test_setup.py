@@ -13,7 +13,7 @@ def test_imports():
     print("Testing module imports...")
     
     try:
-        import mcp_server
+        import mcp.mcp_server as mcp_server
         print("✓ MCP server module imports successfully")
     except ImportError as e:
         print(f"✗ MCP server import failed: {e}")

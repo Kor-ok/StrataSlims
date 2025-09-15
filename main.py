@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from flask import Flask
+
 try:
     from dotenv import load_dotenv  # type: ignore
 except Exception:
@@ -49,6 +51,9 @@ REQUIRED_ENVS = [
     "SUNO_API_KEY",
     "WEBHOOK_BOT",
     "WEBHOOK_SEND_TO",
+    "PREEMPTION_ALERT_CHANNEL_ID",
+    "PREEMPTION_WEBHOOK",
+    "LOCALHOST"
 ]
 
 
@@ -171,7 +176,7 @@ def run_bot_module() -> int:
     """Import and run the bot module. bot.py starts the client at import time."""
     try:
         # Importing bot triggers client.run(...) per current implementation.
-        import bot  # noqa: F401  # type: ignore
+        from bot import run  # noqa: F401  # type: ignore
         return 0
     except KeyboardInterrupt:
         logger.info("Shutdown requested by user (KeyboardInterrupt).")

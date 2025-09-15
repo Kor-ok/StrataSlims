@@ -6,7 +6,7 @@ import json
 import requests
 
 from config import get_suno_token
-import sunoresults as sp
+import bot.sunoresults as sp
 
 BASE_URL = 'https://api.sunoapi.org/api/v1'
 # mock_time_start = time.time()
@@ -215,3 +215,34 @@ async def boost_style(text: str) -> dict:
         "errorCode": error_code,
         "errorMessage": error_message,
     }
+    
+async def generate_boosted_style(payload: dict) -> dict:
+
+    url = f"{BASE_URL}/style/generate"
+
+    headers = {
+        "Authorization": f"Bearer {get_suno_token()}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    
+    if response.status_code != 200:
+        return {"error": response.json()}
+    
+    log_entry = {
+        "taskId": response.json()['data']['taskId'],
+        "param": response.json()['data']['param'],
+        "result": response.json()['data']['result'],
+        "creditsRemaining": response.json()['data']['creditsRemaining'],
+        "createTime": response.json()['data']['createTime'],
+        "originalPayload": payload
+    }
+    with open("booststyle.log", "a") as f:
+        f.write(f"{log_entry}\n")
+
+    result = {
+        "result": response.json()['data']['result'],
+        "creditsRemaining": response.json()['data']['creditsRemaining'],
+    }
+    return result

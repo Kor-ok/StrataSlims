@@ -1,4 +1,5 @@
 import os
+import socket
 import io
 import traceback
 import gc
@@ -98,3 +99,16 @@ def get_webhook(key: str) -> str:
     _unload_env()
     return _webhook
 
+def get_is_localhost() -> bool:
+    _load_env()
+    _localhost = os.environ.get('LOCALHOST')
+    _unload_env()
+    if not socket.gethostname() == _localhost:
+        return False
+    return True
+
+def get_flask_shutdown_token() -> str:
+    _load_env()
+    _token = os.environ.get('FLASK_SHUTDOWN_TOKEN')
+    _unload_env()
+    return _token if _token else ""
