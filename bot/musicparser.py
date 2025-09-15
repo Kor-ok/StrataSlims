@@ -1,6 +1,15 @@
 from discord.ui import LayoutView
 
 from config import get_webhook
+"""
+Prompt Length Limits:
+V3_5 & V4: Maximum 3000 characters
+V4_5 & V4_5PLUS: Maximum 5000 characters
+Style Length Limits:
+For V3_5 and V4 models: Max length: 200 characters.
+For V4_5 and V4_5PLUS models: Max length: 1000 characters.
+"""
+DEFAULT_MODEL = "V4_5PLUS"
 
 webhook_bot = get_webhook("WEBHOOK_BOT")
 webhook_send_to = get_webhook("WEBHOOK_SEND_TO")
@@ -79,7 +88,7 @@ def build_music_payload(view: LayoutView) -> dict:
         "title": get_from_infobox(view.info_title.content),    # type: ignore
         "customMode": True,
         "instrumental": False,
-        "model": "V4_5PLUS",
+        "model": DEFAULT_MODEL,
         "callBackUrl": webhook_bot,
     }
 
@@ -99,15 +108,15 @@ def build_music_payload(view: LayoutView) -> dict:
     # Optional numeric weights
     style_w_raw = view.info_style_weight.content  # type: ignore
     if not _is_empty(style_w_raw):
-        payload["styleWeight"] = float(_get_float_from_infobox(style_w_raw))
+        payload["styleWeight"] = _get_float_from_infobox(style_w_raw)
 
     weird_w_raw = view.info_weirdness_weight.content  # type: ignore
     if not _is_empty(weird_w_raw):
-        payload["weirdnessConstraint"] = float(_get_float_from_infobox(weird_w_raw))
+        payload["weirdnessConstraint"] = _get_float_from_infobox(weird_w_raw)
 
     audio_w_raw = view.info_audio_weight.content  # type: ignore
     if not _is_empty(audio_w_raw):
-        payload["audioWeight"] = float(_get_float_from_infobox(audio_w_raw))
+        payload["audioWeight"] = _get_float_from_infobox(audio_w_raw)
 
     return payload
 

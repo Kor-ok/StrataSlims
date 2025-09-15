@@ -4,11 +4,12 @@ from discord import app_commands
 from config import (get_test_guild_id, 
                     get_greenlist, 
                     get_bot_token, 
-                    get_is_localhost)
+                    get_is_localhost,
+                    DEV_MODE)
 from bot.gen_music import handle_music_command
 
-DEV_MODE = True
-if DEV_MODE:
+_dev_mode = DEV_MODE
+if _dev_mode:
     TEST_GUILD = discord.Object(get_test_guild_id())
 else:
     TEST_GUILD = None

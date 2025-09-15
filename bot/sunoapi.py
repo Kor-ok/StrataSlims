@@ -5,7 +5,9 @@ import json
 
 import requests
 
-from config import get_suno_token, get_log_folder
+from config import get_suno_token, get_log_folder, DEV_MODE
+
+_dev_mode = DEV_MODE
 
 BASE_URL = 'https://api.sunoapi.org/api/v1'
 LOG_FOLDER = get_log_folder()
@@ -45,8 +47,10 @@ async def generate_music(payload: dict) -> dict:
         "created_timestamp": time.time(),
         "payload": payload
     }
-    with open(os.path.join(LOG_FOLDER, "task_ids.log"), "a") as f:
-        f.write(f"{log_entry}\n")
+    # ======================================================== LOG
+    if _dev_mode:
+        with open(os.path.join(LOG_FOLDER, "task_ids.log"), "a") as f:
+            f.write(f"{log_entry}\n")
 
     return response.json()
 
@@ -59,12 +63,13 @@ async def get_task_results(task_id: str) -> dict:
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         results = response.json()
-        # Write as pretty JSON to task_results.log
+        # ======================================================== LOG
         if results.get('data', {}).get('status') in ['SUCCESS']:
             status = (results.get('data', {}).get('status') or '').strip().upper()
             if status in {'SUCCESS'}:
-                with open(os.path.join(LOG_FOLDER, "task_results.log"), "a") as f:
-                    f.write(f"{datetime.datetime.now()}: {task_id} -> {json.dumps(results, indent=4)}\n")
+                if _dev_mode:
+                    with open(os.path.join(LOG_FOLDER, "task_results.log"), "a") as f:
+                        f.write(f"{datetime.datetime.now()}: {task_id} -> {json.dumps(results, indent=4)}\n")
         return results
     else:
         print(f"Error: {response.status_code} - {response.text}")
@@ -92,8 +97,10 @@ async def generate_boosted_style(payload: dict) -> dict:
         "createTime": response.json()['data']['createTime'],
         "originalPayload": payload
     }
-    with open(os.path.join(LOG_FOLDER, "booststyle.log"), "a") as f:
-        f.write(f"{log_entry}\n")
+    # ======================================================== LOG
+    if _dev_mode:
+        with open(os.path.join(LOG_FOLDER, "booststyle.log"), "a") as f:
+            f.write(f"{log_entry}\n")
 
     result = {
         "result": response.json()['data']['result'],

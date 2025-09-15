@@ -9,6 +9,13 @@ from discord.ext import tasks
 from bot.musicparser import *
 from bot.sunoapi import *
 from bot.post_songs import url_to_file
+from config import DEV_MODE, get_bot_alerts_routes
+
+_dev_mode = DEV_MODE
+
+_bot_alert_routes = get_bot_alerts_routes()
+BOT_LOGS_CHANNEL_ID = _bot_alert_routes.get("BOT_LOGS_CHANNEL_ID", None)
+BOT_LOGS_WEBHOOK = _bot_alert_routes.get("BOT_LOGS_WEBHOOK", None)
 
 HELP_TEXT = 'Helpful Info'
 MUSIC_GEN_THUMBNAIL = 'https://cdn.discordapp.com/attachments/1415112547484438701/1415112547748544635/logo.png'
@@ -57,8 +64,27 @@ class MusicGenButtons(discord.ui.ActionRow):
 			)
 			return
 		style_boost_payload = build_booststyle_payload(self.__view)
-		print(f"Generated boost style payload:\n {json.dumps(style_boost_payload, indent=4)}")
 		
+		if _dev_mode:
+			print(f"Generated boost style payload:\n {json.dumps(style_boost_payload, indent=4)}")
+		else:
+			# In production, log the payload to the bot logs channel for auditing
+			if BOT_LOGS_CHANNEL_ID and BOT_LOGS_WEBHOOK:
+				try:
+					log_channel = interaction.client.get_channel(BOT_LOGS_CHANNEL_ID)
+					if log_channel is None:
+						log_channel = await interaction.client.fetch_channel(BOT_LOGS_CHANNEL_ID)
+					if isinstance(log_channel, discord.TextChannel):
+						payload_str = json.dumps(style_boost_payload, indent=4)
+						if len(payload_str) > 1900:
+							payload_str = payload_str[:1900] + "\n... (truncated)"
+						await log_channel.send(
+							content=f"New style boost request from {interaction.user.mention}:\n```json\n{payload_str}\n```"
+						)
+				except Exception as e:
+					print(f"Failed to log style boost request: {e}")
+					traceback.print_exc()		
+  
 		await toggle_button_states(interaction, self.__view, is_generating=True)
   
 		response = await generate_boosted_style(style_boost_payload) # = Uncomment FOR MOCK TESTING =
@@ -141,7 +167,26 @@ class MusicGenButtons(discord.ui.ActionRow):
 				return
 		# Build the payload from the view state
 		payload = build_music_payload(self.__view)
-		print(f"Generated music gen payload:\n {json.dumps(payload, indent=4)}")
+  
+		if _dev_mode:
+			print(f"Generated music gen payload:\n {json.dumps(payload, indent=4)}")
+		else:
+			# In production, log the payload to the bot logs channel for auditing
+			if BOT_LOGS_CHANNEL_ID and BOT_LOGS_WEBHOOK:
+				try:
+					log_channel = interaction.client.get_channel(BOT_LOGS_CHANNEL_ID)
+					if log_channel is None:
+						log_channel = await interaction.client.fetch_channel(BOT_LOGS_CHANNEL_ID)
+					if isinstance(log_channel, discord.TextChannel):
+						payload_str = json.dumps(payload, indent=4)
+						if len(payload_str) > 1900:
+							payload_str = payload_str[:1900] + "\n... (truncated)"
+						await log_channel.send(
+							content=f"New music generation request from {interaction.user.mention}:\n```json\n{payload_str}\n```"
+						)
+				except Exception as e:
+					print(f"Failed to log music generation request: {e}")
+					traceback.print_exc()
 		
 		await toggle_button_states(interaction, self.__view, is_generating=True)
 		
@@ -501,7 +546,25 @@ async def _check_music_gen_results(interaction: discord.Interaction,
 		_check_music_gen_results.stop()
 		return
 	status = (task_results.get('data', {}).get('status') or '').strip().upper()
-	print(f'Status: {status}')
+	if _dev_mode:
+		print(f'Status: {status}')
+	else:
+		# In production, log the whole task result to the bot logs channel for auditing
+		if BOT_LOGS_CHANNEL_ID and BOT_LOGS_WEBHOOK and status in {'SUCCESS'}:
+			try:
+				log_channel = interaction.client.get_channel(BOT_LOGS_CHANNEL_ID)
+				if log_channel is None:
+					log_channel = await interaction.client.fetch_channel(BOT_LOGS_CHANNEL_ID)
+				if isinstance(log_channel, discord.TextChannel):
+					task_results_str = json.dumps(task_results, indent=4)
+					if len(task_results_str) > 1900:
+						task_results_str = task_results_str[:1900] + "\n... (truncated)"
+					await log_channel.send(
+						content=f"Music generation task update for {interaction.user.mention} (Task ID: `{task_id}`):\n```json\n{task_results_str}\n```"
+					)
+			except Exception as e:
+				print(f"Failed to log music generation task update: {e}")
+				traceback.print_exc()
 	if status in {'SUCCESS'}:
 		# Stop the loop
 		_check_music_gen_results.stop()

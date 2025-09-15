@@ -4,6 +4,8 @@ import io
 import traceback
 import gc
 
+DEV_MODE = False  # Set to False in Production
+
 def _load_env(file_name: str = ".env") -> None:
     base_dir = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(base_dir, file_name)
@@ -120,3 +122,19 @@ def get_log_folder() -> str:
     if not os.path.exists(os.path.join(base_dir, "logs")):
         os.makedirs(os.path.join(base_dir, "logs"))
     return os.path.join(base_dir, "logs")
+
+def get_bot_alerts_routes() -> dict:
+    _load_env()
+    keys = {
+        "PREEMPTION_ALERT_CHANNEL_ID",
+        "PREEMPTION_WEBHOOK",
+        "BOT_LOGS_CHANNEL_ID",
+        "BOT_LOGS_WEBHOOK"
+    }
+    routes = {}
+    for key in keys:
+        value = os.environ.get(key)
+        if value:
+            routes[key] = value
+    _unload_env()
+    return routes
