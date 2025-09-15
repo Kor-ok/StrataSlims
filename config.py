@@ -112,3 +112,11 @@ def get_flask_shutdown_token() -> str:
     _token = os.environ.get('FLASK_SHUTDOWN_TOKEN')
     _unload_env()
     return _token if _token else ""
+
+def get_log_folder() -> str:
+    # Config.py is in the root and the logs folder is in the same directory
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    # Make the logs directory if it doesn't exist
+    if not os.path.exists(os.path.join(base_dir, "logs")):
+        os.makedirs(os.path.join(base_dir, "logs"))
+    return os.path.join(base_dir, "logs")

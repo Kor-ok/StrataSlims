@@ -14,7 +14,7 @@ def get_from_infobox(text: str) -> str:
         return text.split(':', 1)[1].strip()
     return text.strip()
 
-def get_gender_from_infobox(text: str) -> str:
+def _get_gender_from_infobox(text: str) -> str:
     if 'Male' in text:
         return 'm'
     elif 'Female' in text:
@@ -23,7 +23,7 @@ def get_gender_from_infobox(text: str) -> str:
         return ''
     return ''  # Default to nothing
 
-def get_float_from_infobox(text: str) -> str:
+def _get_float_from_infobox(text: str) -> str:
     # Extract float value from the text
     # Apply normalization if needed
     # Convert to string for payload
@@ -92,22 +92,22 @@ def build_music_payload(view: LayoutView) -> dict:
     # Optional: vocalGender
     gender_raw = view.info_gender.content  # type: ignore
     if not _is_empty(gender_raw):
-        gender_val = get_gender_from_infobox(gender_raw)
+        gender_val = _get_gender_from_infobox(gender_raw)
         if gender_val:  # only include if maps to m/f
             payload["vocalGender"] = gender_val
 
     # Optional numeric weights
     style_w_raw = view.info_style_weight.content  # type: ignore
     if not _is_empty(style_w_raw):
-        payload["styleWeight"] = float(get_float_from_infobox(style_w_raw))
+        payload["styleWeight"] = float(_get_float_from_infobox(style_w_raw))
 
     weird_w_raw = view.info_weirdness_weight.content  # type: ignore
     if not _is_empty(weird_w_raw):
-        payload["weirdnessConstraint"] = float(get_float_from_infobox(weird_w_raw))
+        payload["weirdnessConstraint"] = float(_get_float_from_infobox(weird_w_raw))
 
     audio_w_raw = view.info_audio_weight.content  # type: ignore
     if not _is_empty(audio_w_raw):
-        payload["audioWeight"] = float(get_float_from_infobox(audio_w_raw))
+        payload["audioWeight"] = float(_get_float_from_infobox(audio_w_raw))
 
     return payload
 
@@ -117,9 +117,10 @@ def build_booststyle_payload(view: LayoutView) -> dict:
     }
     return payload
 
-__all__ = ["send_to_infobox", 
-           "get_from_infobox",
-            "validate_song_interaction_data",
-            "build_music_payload",
-            "build_booststyle_payload",
-           ]
+__all__ = [
+    "send_to_infobox", 
+    "get_from_infobox",
+    "validate_song_interaction_data",
+    "validate_booststyle_interaction_data",
+    "build_music_payload",
+    "build_booststyle_payload"]

@@ -1,15 +1,18 @@
 import discord
 from discord import app_commands
 
-from config import get_test_guild_id, get_greenlist, get_bot_token, get_is_localhost
+from config import (get_test_guild_id, 
+                    get_greenlist, 
+                    get_bot_token, 
+                    get_is_localhost)
 from bot.gen_music import handle_music_command
-from bot.booststyle import handle_booststyle_command
 
-"""
-sudo supervisorctl restart strataslims
-"""
+DEV_MODE = True
+if DEV_MODE:
+    TEST_GUILD = discord.Object(get_test_guild_id())
+else:
+    TEST_GUILD = None
 
-TEST_GUILD = discord.Object(get_test_guild_id())
 _greenlist = get_greenlist()
 GREENLIST = [discord.Object(id=user_id) for user_id in _greenlist]
 STATUS_IDENT = ['remotely', 'locally']
@@ -26,9 +29,12 @@ class StrataSlims(discord.Client):
 
         self.tree = app_commands.CommandTree(self)
 
-    # async def on_ready(self):
-    #     print(f'Logged in as {self.user} (ID: {self.user.id})')
-    #     print('------')
+    async def on_ready(self):
+        if DEV_MODE:
+            print(f'Logged in as {self.user} (ID: {self.user.id})')
+            print('------')
+        else:
+            pass
 
     async def setup_hook(self) -> None:
         await self.tree.sync(guild=TEST_GUILD)
@@ -38,9 +44,5 @@ client = StrataSlims()
 @client.tree.command(guild=TEST_GUILD, description='Music')
 async def music(interaction: discord.Interaction):
     await handle_music_command(interaction)
-    
-# @client.tree.command(guild=TEST_GUILD, description='Boost Style')
-# async def booststyle(interaction: discord.Interaction):
-#     await handle_booststyle_command(interaction)
 
 client.run(get_bot_token())

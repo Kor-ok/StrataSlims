@@ -1,15 +1,14 @@
-import asyncio
+import os
 import time
 import datetime
 import json
 
 import requests
 
-from config import get_suno_token
-import bot.sunoresults as sp
+from config import get_suno_token, get_log_folder
 
 BASE_URL = 'https://api.sunoapi.org/api/v1'
-# mock_time_start = time.time()
+LOG_FOLDER = get_log_folder()
 
 async def get_remaining_credits() -> str:
 
@@ -46,116 +45,17 @@ async def generate_music(payload: dict) -> dict:
         "created_timestamp": time.time(),
         "payload": payload
     }
-    with open("task_ids.log", "a") as f:
+    with open(os.path.join(LOG_FOLDER, "task_ids.log"), "a") as f:
         f.write(f"{log_entry}\n")
 
     return response.json()
-
-async def wait_for_completion(task_id: str, max_wait_time: int = 600, poll_interval: int = 5) -> dict:
-
-    url = f"{BASE_URL}/generate/record-info?taskId={task_id}"
-    headers = {
-    "Authorization": f"Bearer {get_suno_token()}"
-    }
-    start_time = time.time()
-    while time.time() - start_time < max_wait_time:
-        response = requests.get(url, headers=headers)
-        results = sp.parse_log_dict(str(response))
-        
-        if response.status_code != 200:
-            return {
-                "code": results.get("code"),
-                "msg": results.get("msg")
-            }
-
-        status = results.get("data", {}).get("status")
-
-        """
-        PENDING: Task is waiting to be processed
-        TEXT_SUCCESS: Lyrics/text generation completed successfully
-        FIRST_SUCCESS: First track generation completed successfully
-        SUCCESS: All tracks generated successfully
-        CREATE_TASK_FAILED: Failed to create the generation task
-        GENERATE_AUDIO_FAILED: Failed to generate music tracks
-        CALLBACK_EXCEPTION: Error occurred during callback
-        SENSITIVE_WORD_ERROR: Content contains prohibited words
-        """
-        if status == "SENSITIVE_WORD_ERROR" or \
-           status == "CREATE_TASK_FAILED" or \
-           status == "GENERATE_AUDIO_FAILED" or \
-           status == "CALLBACK_EXCEPTION":
-            return {
-                "error": {
-                    "msg": f"{status}"
-                }
-            }
-        elif status == "TEXT_SUCCESS":
-            song_lyrics = {}
-            song_lyrics['lyrics'] = results.get("data", {}).get("text", {})
-            return song_lyrics
-        elif status == "SUCCESS":
-            song_ids = []
-            tracks = sp.build_tracks(results)
-            for track in tracks:
-                song_ids.append(track.id)
-            
-            song_titles = []
-            for track in tracks:
-                song_titles.append(track.title)
-            
-            song_audio_urls = []
-            for track in tracks:
-                song_audio_urls.append(track.audio_url)
-            
-            song_image_urls = []
-            for track in tracks:
-                song_image_urls.append(track.image_url)
-            
-            song_durations = []
-            for track in tracks:
-                song_durations.append(track.duration)
-            # Duration in Minutes and Seconds
-            song_durations = [f"{int(d // 60)}m {int(d % 60)}s" if d is not None else "Unknown" for d in song_durations]    
-            
-            return {
-                "song_ids": song_ids,
-                "song_titles": song_titles,
-                "song_audio_urls": song_audio_urls,
-                "song_image_urls": song_image_urls,
-                "song_durations": song_durations
-            }
-        # PENDING or other statuses
-        await asyncio.sleep(poll_interval)
-    raise Exception('Generation timeout')
-
-def _mock_pending_status_response(task_id: str) -> dict:
-    return {
-        "code": 200,
-        "msg": "success",
-        "data": {
-            "taskId": f"{task_id}",
-            "parentMusicId": "",
-            "param": "{\"prompt\":\"A calm piano track\",\"style\":\"Classical\",\"title\":\"Peaceful Piano\",\"customMode\":true,\"instrumental\":true,\"model\":\"V3_5\"}",
-            "response": None,
-            "status": "PENDING",
-            "type": "GENERATE",
-            "errorCode": None,
-            "errorMessage": None
-        }
-    }
 
 async def get_task_results(task_id: str) -> dict:
     url = f"{BASE_URL}/generate/record-info?taskId={task_id}"
     headers = {
     "Authorization": f"Bearer {get_suno_token()}"
     }
-    # ============= MOCK TESTING =================
-    # MOCK_WAIT_TIME = 180  
-    # elapsed_time = time.time() - mock_time_start
-    # mock_pending = elapsed_time <= MOCK_WAIT_TIME
-    # if mock_pending:
-    #     return _mock_pending_status_response(task_id)
-    # ============================================
+
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         results = response.json()
@@ -163,59 +63,13 @@ async def get_task_results(task_id: str) -> dict:
         if results.get('data', {}).get('status') in ['SUCCESS']:
             status = (results.get('data', {}).get('status') or '').strip().upper()
             if status in {'SUCCESS'}:
-                with open("task_results.log", "a") as f:
+                with open(os.path.join(LOG_FOLDER, "task_results.log"), "a") as f:
                     f.write(f"{datetime.datetime.now()}: {task_id} -> {json.dumps(results, indent=4)}\n")
         return results
     else:
         print(f"Error: {response.status_code} - {response.text}")
         return {"error": {"msg": f"Failed to retrieve task results"}}  # Return an error dict
-    
-async def boost_style(text: str) -> dict:
-
-    url = f"{BASE_URL}/style/generate"
-
-    payload = {
-        "content": f"{text}",
-    }
-
-    headers = {
-        "Authorization": f"Bearer {get_suno_token()}",
-        "Content-Type": "application/json"
-    }
-    response = requests.post(url, json=payload, headers=headers)
-    
-    # Try to parse JSON safely
-    try:
-        body = response.json()
-    except ValueError:
-        print(f"Error: {response.status_code} - Non-JSON response")
-        return {"error": {"msg": "Failed to boost style"}}
-
-    if response.status_code != 200:
-        msg = body.get("msg") or body.get("message") or "Unknown error"
-        print(f"Error: {response.status_code} - {msg}")
-        return {"error": {"msg": "Failed to boost style"}}
-
-    data = body.get("data") or {}
-
-    # Coalesce nullable fields to safe defaults
-    task_id = data.get("taskId") or ""
-    result = data.get("result") or {}            # {} instead of None
-    credits_remaining = data.get("creditsRemaining")
-    error_code = data.get("errorCode")            # keep None if null
-    error_message = data.get("errorMessage") or ""  # "" instead of None
-
-    with open("booststyle.log", "a") as f:
-        f.write(f"{datetime.datetime.now()}: {text} -> {json.dumps(body, indent=4)}\n")
-
-    return {
-        "task_id": task_id,
-        "result": result,
-        "creditsRemaining": credits_remaining,
-        "errorCode": error_code,
-        "errorMessage": error_message,
-    }
-    
+   
 async def generate_boosted_style(payload: dict) -> dict:
 
     url = f"{BASE_URL}/style/generate"
@@ -238,7 +92,7 @@ async def generate_boosted_style(payload: dict) -> dict:
         "createTime": response.json()['data']['createTime'],
         "originalPayload": payload
     }
-    with open("booststyle.log", "a") as f:
+    with open(os.path.join(LOG_FOLDER, "booststyle.log"), "a") as f:
         f.write(f"{log_entry}\n")
 
     result = {
@@ -246,3 +100,10 @@ async def generate_boosted_style(payload: dict) -> dict:
         "creditsRemaining": response.json()['data']['creditsRemaining'],
     }
     return result
+
+__all__ = [
+    "get_remaining_credits",
+    "generate_music",
+    "get_task_results",
+    "generate_boosted_style"
+]
