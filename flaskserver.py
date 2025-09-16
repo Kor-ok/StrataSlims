@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import os
 import threading
+import subprocess
 import time
 from typing import Callable, Optional
 
@@ -39,6 +40,23 @@ from flask import Flask, abort, jsonify, request
 from werkzeug.serving import make_server
 
 from config import get_flask_shutdown_token
+
+SERVICE_NAME = "strataslims.service"
+
+def _systemctl(action: str) -> tuple[int, str]:
+    """Run systemctl for the bot service (requires passwordless sudo)."""
+    allowed = {"start", "stop", "restart", "is-active"}
+    if action not in allowed:
+        return 400, f"unsupported action: {action}"
+    cmd = ["sudo", "/usr/bin/systemctl", action, SERVICE_NAME]
+    try:
+        if action == "is-active":
+            out = subprocess.check_output(cmd, text=True).strip()
+            return 200, out
+        subprocess.check_call(cmd)
+        return 200, "ok"
+    except subprocess.CalledProcessError as e:
+        return 500, f"systemctl {action} failed: {e}"
 
 HOST_DEFAULT = os.environ.get("FLASK_BIND", "127.0.0.1")
 PORT_DEFAULT = int(os.environ.get("FLASK_PORT", "8787"))
@@ -93,24 +111,34 @@ def shutdown():
 
 @app.post("/startbot")
 def startbot():
-	if not _is_authorized(request):
-		abort(403)
-
-	return jsonify({"status": "not implemented"}), 501
+    if not _is_authorized(request):
+        abort(403)
+    code, msg = _systemctl("start")
+    status_code, state = _systemctl("is-active")
+    return jsonify({"action": "start", "result": msg, "state": state}), (200 if code == 200 else 500)
 
 @app.post("/stopbot")
 def stopbot():
-	if not _is_authorized(request):
-		abort(403)
-
-	return jsonify({"status": "not implemented"}), 501
+    if not _is_authorized(request):
+        abort(403)
+    code, msg = _systemctl("stop")
+    status_code, state = _systemctl("is-active")
+    return jsonify({"action": "stop", "result": msg, "state": state}), (200 if code == 200 else 500)
 
 @app.post("/restartbot")
 def restartbot():
-	if not _is_authorized(request):
-		abort(403)
+    if not _is_authorized(request):
+        abort(403)
+    code, msg = _systemctl("restart")
+    status_code, state = _systemctl("is-active")
+    return jsonify({"action": "restart", "result": msg, "state": state}), (200 if code == 200 else 500)
 
-	return jsonify({"status": "not implemented"}), 501
+@app.get("/status")
+def status():
+    if not _is_authorized(request):
+        abort(403)
+    code, state = _systemctl("is-active")
+    return jsonify({"state": state}), (200 if code == 200 else 500)
 
 def start_background_server(host: str = HOST_DEFAULT, port: int = PORT_DEFAULT, *,
 							shutdown_callback: Optional[Callable[[], None]] = None,

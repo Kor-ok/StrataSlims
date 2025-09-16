@@ -1,0 +1,19 @@
+[Unit]
+Description=StrataSlims control API (start/stop/restart bot)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=korokchatterjee
+Group=korokchatterjee
+WorkingDirectory=/home/korokchatterjee/StrataSlims
+ExecStart=/home/korokchatterjee/StrataSlims/.venv/bin/python -u /home/korokchatterjee/StrataSlims/flaskserver.py
+EnvironmentFile=/home/korokchatterjee/StrataSlims/.env
+Environment=FLASK_BIND=127.0.0.1
+Environment=FLASK_PORT=8787
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
