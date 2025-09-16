@@ -182,7 +182,10 @@ class MusicGenButtons(discord.ui.ActionRow):
 						if len(payload_str) > 1900:
 							payload_str = payload_str[:1900] + "\n... (truncated)"
 						await log_channel.send(
-							content=f"New music generation request from {interaction.user.mention}:\n```json\n{payload_str}\n```"
+							content=f"New music generation request from {interaction.user.mention}:\n```json\n{payload_str}\n```",
+							allowed_mentions=discord.AllowedMentions.none(),
+							mention_author=False,
+       						silent=True
 						)
 				except Exception as e:
 					print(f"Failed to log music generation request: {e}")
