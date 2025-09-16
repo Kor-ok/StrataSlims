@@ -1,254 +1,255 @@
-# StrataSlims
+# StrataSlims Discord Music Bot
 
-StrataSlims is a Discord bot that generates music using Suno AI with Model Context Protocol (MCP) support. This bot allows users to create custom music tracks through Discord commands and provides an MCP server interface for integration with AI systems.
+StrataSlims is a Python Discord bot that integrates with the Suno AI API to generate music from user prompts. It runs as a lightweight bot remotely on a VM and can dynamically hand off operation to a locally running bot that offers heavier (GPU‑based) features. Only one bot instance should be logged in to Discord at a time.
+
+- Remote: Thin, reliable, always‑on presence on a small VM (e2‑micro). Auto‑updates, health checks, and a control API.
+- Local: Heavier features (e.g., GPU‑assisted workflows) on your workstation/laptop when needed. Use the control API to stop the remote bot before starting the local one, then switch back after the task finishes.
+
+The bot presence shows “watching remotely” on the VM and “watching locally” on your workstation to indicate where it’s running.
 
 ## Features
 
-- 🎵 **Music Generation**: Generate custom music tracks using Suno AI
-- 🤖 **Discord Bot**: Interactive Discord bot with slash commands
-- 🔌 **MCP Support**: Model Context Protocol server for AI integration
-- 🎨 **Music Parsing**: Intelligent parsing of music generation requests
-- 💰 **Credit Management**: Monitor Suno AI API credits
-- 🛡️ **Access Control**: Configurable user access control (greenlist)
+- 🎵 Music generation via Suno AI
+- 🤖 Discord slash command with rich UI (details modal, extras modal, channel selector, buttons)
+- ✨ Style Boost flow (refines a provided style before generation)
+- 💰 Credit display and background polling for status
+- 🔧 Control API to start/stop/restart the bot service on the VM
+- � Safe remote/local handoff pattern with presence indicator
+- 🔌 Optional MCP server for integrations
 
 ## Prerequisites
 
 - Python 3.9 or higher
-- Discord Bot Token
-- Suno AI API access
-- Discord server with appropriate permissions
+- Discord bot token and permissions in your server (Send Messages, Use Slash Commands, Embed Links, Attach Files)
+- Suno AI API access and key
+- For remote hosting: a small Linux VM (e.g., Debian 12 on GCE e2‑micro)
 
-## Installation
+## Quick Start
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Kor-ok/StrataSlims.git
-   cd StrataSlims
-   ```
+Create a virtual environment and install dependencies.
 
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+Windows PowerShell:
 
-3. **Set up environment variables:**
-   Create a `.env` file in the project root:
-   ```env
-   DISCORD_BOT_TOKEN=your_discord_bot_token_here
-   SUNO_API_KEY=your_suno_api_key_here
-   TEST_GUILD_ID=your_discord_guild_id_here
-   GREENLIST=comma,separated,user,ids
-   ```
-
-## Configuration
-
-### Discord Bot Setup
-
-1. Create a Discord application at [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a bot and copy the token to your `.env` file
-3. Enable the following bot permissions:
-   - Send Messages
-   - Use Slash Commands
-   - Embed Links
-   - Attach Files
-
-### Suno AI Setup
-
-1. Get API access from Suno AI
-2. Add your API key to the `.env` file
-3. Configure credit limits and usage policies
-
-## Usage
-
-### Running the Discord Bot
-
-```bash
-python main.py
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-### Running the MCP Server
-
-The MCP server provides a standardized interface for AI systems to interact with StrataSlims:
+Linux/macOS:
 
 ```bash
-python mcp_server.py
-```
-
-### Discord Commands
-
-- `/generate` - Generate music with a text prompt
-- `/credits` - Check remaining Suno AI credits
-- `/help` - Display available commands
-
-### MCP Tools
-
-When running as an MCP server, StrataSlims provides these tools:
-
-- **generate_music**: Generate music using Suno AI API
-- **check_credits**: Check remaining Suno AI credits  
-- **parse_music_request**: Parse and validate music generation requests
-
-## Deployment
-
-The bot is currently hosted on Google Compute Engine with the following configuration:
-
-- Instance: e2-micro (2 vCPUs, 1 GB memory)
-- OS image: debian-12-bookworm-v20240611
-- Cost: no running cost (fits within current free tier/credits)
-- Notes:
-  - The e2-micro has limited memory. Avoid running additional heavy processes on the same VM.
-  - Prefer running the bot and MCP server as separate processes if needed, but be mindful of RAM limits.
-  - Use swap or lightweight process managers (e.g., systemd) if stability issues arise under memory pressure.
-
-Basic start commands (example):
-
-```bash
-# From project root on the VM
 python3 -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-
-# Run bot
-python main.py
-
-# Run MCP server (optional)
-python mcp_server.py
 ```
 
-## MCP Configuration
+Create a `.env` in the repo root (see Environment Variables below), then validate:
 
-To use StrataSlims as an MCP server, add this configuration to your MCP client:
-
-```json
-{
-  "mcpServers": {
-    "strataslims": {
-      "command": "python",
-      "args": ["mcp_server.py"],
-      "env": {
-        "PYTHONPATH": "."
-      }
-    }
-  }
-}
+```powershell
+python -m py_compile *.py bot/*.py mcp/*.py server/*.py
+python .\main.py healthcheck
 ```
 
-## Project Structure
+Run locally:
 
-```
-StrataSlims/
-├── bot.py              # Discord bot implementation
-├── mcp_server.py       # MCP server implementation
-├── config.py           # Configuration management
-├── musicparser.py      # Music request parsing
-├── sunoapi.py          # Suno AI API integration
-├── sunoresults.py      # Result processing
-├── mockapi.py          # Mock API for testing
-├── main.py             # Application entry point
-├── mcp.json            # MCP server configuration
-├── pyproject.toml      # Project metadata
-├── requirements.txt    # Python dependencies
-└── README.md           # This file
+```powershell
+python .\main.py
 ```
 
-## API Integration
-
-### Suno AI
-
-StrataSlims integrates with the Suno AI API for music generation. Key features:
-
-- Asynchronous music generation
-- Credit monitoring
-- Progress tracking
-- Result retrieval
-
-### Discord API
-
-Using discord.py for:
-
-- Slash command handling
-- Message management
-- File uploads
-- User authentication
-
-## Development
-
-### Setting up Development Environment
-
-1. Install development dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Run tests (if available):
-   ```bash
-   python -m pytest
-   ```
-
-3. Code formatting:
-   ```bash
-   black .
-   flake8 .
-   ```
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+You should see the bot presence as “watching locally”. Use the `/music` command in Discord.
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DISCORD_BOT_TOKEN` | Discord bot token | Yes |
-| `SUNO_API_KEY` | Suno AI API key | Yes |
-| `TEST_GUILD_ID` | Discord guild ID for testing | Yes |
-| `GREENLIST` | Comma-separated user IDs allowed to use the bot | No |
+Recommended `.env` (minimally for remote run):
+
+```env
+DISCORD_BOT_TOKEN=...
+TEST_GUILD_ID=...
+GREENLIST=123,456
+SUNO_API_KEY=...
+WEBHOOK_BOT=https://discord.com/api/webhooks/...
+WEBHOOK_SEND_TO=https://discord.com/api/webhooks/...
+
+# Presence and control
+LOCALHOST=your-local-hostname
+FLASK_SHUTDOWN_TOKEN=strong-token
+
+# Optional alerting (preemption / logs)
+PREEMPTION_ALERT_CHANNEL_ID=...
+PREEMPTION_WEBHOOK=https://discord.com/api/webhooks/...
+BOT_LOGS_CHANNEL_ID=...
+BOT_LOGS_WEBHOOK=https://discord.com/api/webhooks/...
+
+# Control API bind (control service)
+FLASK_BIND=127.0.0.1
+FLASK_PORT=8787
+```
+
+Notes:
+
+- Presence is set by comparing `socket.gethostname()` with `LOCALHOST` in `config.get_is_localhost`. If equal, the status shows “locally”; otherwise “remotely”.
+- The main runner performs preflight checks (env + basic network) before starting the bot.
+
+## Running (Remote VM)
+
+On the VM, use the provided systemd units and auto‑update runner.
+
+1. Install systemd services (as root):
+
+```bash
+sudo server/install_systemd.sh
+```
+
+2. Services:
+
+- Bot: `server/systemd/strataslims.service` → launches `server/run_with_update.sh`, which performs `git pull`, installs updated requirements (best‑effort), then runs `python main.py run`.
+- Control API: `server/systemd/strataslims-control.service` → serves the control HTTP API from `flaskserver.py`.
+
+The VM bot presence will show “watching remotely”.
+
+## Remote Control API (start/stop/restart/status)
+
+The lightweight Flask server (`flaskserver.py`) runs separately and controls the bot via `systemctl`. If `FLASK_SHUTDOWN_TOKEN` is set, include it as a Bearer token.
+
+Examples (Linux/macOS):
+
+```bash
+curl -s http://127.0.0.1:8787/status -H "Authorization: Bearer <token>"
+curl -X POST http://127.0.0.1:8787/stopbot -H "Authorization: Bearer <token>"
+curl -X POST http://127.0.0.1:8787/startbot -H "Authorization: Bearer <token>"
+curl -X POST http://127.0.0.1:8787/restartbot -H "Authorization: Bearer <token>"
+```
+
+Windows PowerShell:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8787/status" -Headers @{ Authorization = "Bearer <token>" }
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8787/stopbot" -Headers @{ Authorization = "Bearer <token>" }
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8787/startbot" -Headers @{ Authorization = "Bearer <token>" }
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8787/restartbot" -Headers @{ Authorization = "Bearer <token>" }
+```
+
+By default the control API binds to `127.0.0.1`. Expose carefully if needed (firewall + strong token).
+
+## Handoff Pattern (Remote ↔ Local)
+
+- Normal operation: keep the remote VM online (“watching remotely”).
+- When you need GPU‑heavy features locally:
+   1. Stop the remote bot via the control API `/stopbot`.
+   2. Start the local bot (`python main.py`) and verify presence (“watching locally”).
+   3. Complete heavy tasks.
+   4. Stop the local bot.
+   5. Start the remote bot via `/startbot`.
+- Never run both simultaneously with the same Discord token.
+
+## Using the Bot
+
+- Command: `/music`
+Flow:
+
+- Open Details to provide Title, Style, and Lyrics.
+- Optionally open Extras to set Vocalist Gender, Negative Tags, and numeric weights.
+- Optionally use Boost Style to refine your style text.
+- Choose a channel to post results to (defaults to the invoking channel).
+- Submit to begin generation. The bot posts progress and final audio files to the selected channel.
+
+## MCP (Optional)
+
+The MCP server and config live under `mcp/`.
+
+Run the server:
+
+```powershell
+python .\mcp\mcp_server.py
+```
+
+Client configuration example (`mcp/mcp.json`):
+
+```json
+{
+   "mcpServers": {
+      "strataslims": {
+         "command": "python",
+         "args": ["mcp_server.py"],
+         "env": { "PYTHONPATH": "." }
+      }
+   }
+}
+```
+
+## Project Structure (key files)
+
+```text
+StrataSlims/
+├── main.py                     # Runner, preflight, graceful shutdown hooks
+├── config.py                   # Env loader, presence detection, routes
+├── flaskserver.py              # Control API (systemctl bridge)
+├── bot/
+│   ├── run.py                  # Discord client and command tree (/music)
+│   ├── gen_music.py            # UI flow, buttons, background tasks
+│   ├── musicparser.py          # Payload building & validation helpers
+│   ├── sunoapi.py              # Suno API integration
+│   └── post_songs.py           # Download and attach audio files
+├── mcp/
+│   ├── mcp_server.py           # MCP server
+│   └── mcp.json                # MCP client configuration example
+└── server/
+      ├── run_with_update.sh      # Auto‑update then run main.py
+      ├── notify_preemption.py    # Optional shutdown/preemption notify
+      ├── install_systemd.sh      # Install systemd units
+      └── systemd/
+            ├── strataslims.service
+            └── strataslims-control.service
+```
+
+## Validation & Development
+
+Basic validation:
+
+```powershell
+python -m py_compile *.py bot/*.py mcp/*.py server/*.py
+python .\main.py healthcheck
+```
+
+Lint changed files (optional):
+
+```powershell
+pip install flake8
+flake8 --max-line-length=100 --ignore=E501 <changed_files>
+```
+
+## Hosting Notes
+
+- Target: Google Compute Engine e2‑micro (2 vCPU, 1 GB RAM), Debian 12
+- Keep memory footprint low on the VM; avoid heavy processes there
+- Pip installs on low‑RAM VMs may need longer timeouts or `--no-cache-dir`
 
 ## Troubleshooting
 
-### Common Issues
+### Bot not responding
 
-1. **Bot not responding**
-   - Check Discord token validity
-   - Verify bot permissions in Discord server
-   - Check network connectivity
+- Verify `DISCORD_BOT_TOKEN` and permissions
+- Check that only one bot instance is running (remote vs local)
+- Run `python main.py healthcheck` to validate env/network
 
-2. **Music generation fails**
-   - Verify Suno AI API key
-   - Check remaining credits
-   - Validate prompt format
+### Music generation errors
 
-3. **MCP server connection issues**
-   - Ensure Python path is correct
-   - Check MCP configuration format
-   - Verify server startup
+- Verify `SUNO_API_KEY` and remaining credits
+- Check the style/lyrics length thresholds
 
-### Logging
+### Control API errors
 
-Enable debug logging by setting the log level:
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
+- Ensure the control service is running and token matches
+- Confirm it binds to the expected interface/port
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see `LICENSE`.
 
 ## Support
 
-- Create an issue on [GitHub](https://github.com/Kor-ok/StrataSlims/issues)
-- Check the documentation
-- Review existing issues for solutions
-
-## Acknowledgments
-
-- [Discord.py](https://discordpy.readthedocs.io/) - Discord API wrapper
-- [Suno AI](https://suno.ai/) - Music generation API
-- [Model Context Protocol](https://modelcontextprotocol.io/) - Standardized AI integration
+- Open an issue: <https://github.com/Kor-ok/StrataSlims/issues>
+- Review this README and comments in the source files

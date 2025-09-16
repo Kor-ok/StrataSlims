@@ -1,184 +1,159 @@
 # StrataSlims Discord Music Bot
 
-StrataSlims is a Python Discord bot that integrates with the Suno AI music generation API to create custom music based on user prompts. The bot provides Discord slash commands with interactive forms for music generation requests.
+StrataSlims is a Python Discord bot that integrates with the Suno AI API to generate music from user prompts. It runs as a lightweight bot remotely on a VM and can dynamically hand off operation to a locally running bot that offers heavier (GPU-based) features. Only one bot instance should be logged in to Discord at a time.
 
-Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
+- Remote: Thin, reliable, always-on presence on a small VM (e2-micro). Auto-updates, health checks, and control API.
+- Local: Heavier features (e.g., GPU-assisted workflows) on your workstation/laptop when needed. Use the control API to stop the remote bot before starting the local one, then switch back after the task finishes.
+
+The bot presence shows “watching remotely” on the VM and “watching locally” on the workstation to indicate where it’s running.
+
+Key components:
+- Runner and preflight checks: [main.py](../main.py)
+- Discord bot startup: [bot/run.py](../bot/run.py)
+- Music generation flow and UI: [bot/gen_music.py](../bot/gen_music.py), [bot/musicparser.py](../bot/musicparser.py), [bot/sunoapi.py](../bot/sunoapi.py), [bot/post_songs.py](../bot/post_songs.py)
+- Control API for start/stop/restart/status: [flaskserver.py](../flaskserver.py)
+- System services and scripts: [server/systemd/strataslims.service](../server/systemd/strataslims.service), [server/systemd/strataslims-control.service](../server/systemd/strataslims-control.service), [server/run_with_update.sh](../server/run_with_update.sh), [server/notify_preemption.py](../server/notify_preemption.py), [server/install_systemd.sh](../server/install_systemd.sh)
+- MCP server: [mcp/mcp_server.py](../mcp/mcp_server.py), [mcp/mcp.json](../mcp/mcp.json), tests: [mcp/test_setup.py](../mcp/test_setup.py)
+
+Always reference these instructions first and fall back to search/shell only when you encounter unexpected info that does not match here.
 
 ## Working Effectively
 
 ### Bootstrap and Environment Setup
-- Set up Python virtual environment:
-  - `python3 -m venv .venv` -- takes 3 seconds
-  - `source .venv/bin/activate`
+- Create and activate a venv:
+  - `python3 -m venv .venv`
+  - `source .venv/bin/activate` (Windows: `.venv\Scripts\activate`)
   - `pip install --upgrade pip`
 - Install dependencies:
-  - `pip install -r requirements.txt` -- takes 30-60 seconds normally, NEVER CANCEL. Set timeout to 10+ minutes for network issues.
-  - **Network Issues**: If pip install fails due to network timeouts (HTTPSConnectionPool read timed out), this is a known issue with PyPI access in some environments. Document this limitation and retry with: `pip install --timeout=300 --retries=3 -r requirements.txt`
-  - **Alternative for Network Issues**: If persistent timeouts occur, focus validation on syntax checking and document that full dependency testing requires network access
-- Verify installation:
-  - `python -m py_compile *.py` -- validates syntax of all Python files
-  - `python main.py` -- should output "Hello from strataslims!" to confirm basic setup
+  - `pip install -r requirements.txt` (takes ~30–60s; NEVER CANCEL)
+  - Network issues: `pip install --timeout=300 --retries=3 -r requirements.txt`
+  - If persistent timeouts, focus on syntax checks and document that full dependency testing requires network
+- Verify:
+  - `python -m py_compile *.py bot/*.py mcp/*.py server/*.py`
+  - `python main.py healthcheck` should complete preflight (requires network/env)
 
 ### Development Tools
-- Install linting tools for code quality:
-  - `pip install flake8` -- takes 15-30 seconds
-  - `flake8 --max-line-length=100 --ignore=E501 *.py` -- shows code style issues
-- Code has many existing linting violations (whitespace, imports, formatting) - focus on not introducing new ones
+- Lint (avoid adding new violations):
+  - `pip install flake8`
+  - `flake8 --max-line-length=100 --ignore=E501 <changed_files>`
 
-### Running the Application
-- **IMPORTANT**: Full bot functionality requires environment variables in `.env` file:
-  - `DISCORD_BOT_TOKEN` - Discord bot token
-  - `TEST_GUILD_ID` - Discord server ID for testing
-  - `GREENLIST_USER_IDS` - Comma-separated user IDs allowed to use bot
-  - `SUNO_TOKEN` - Suno API token for music generation
-  - `WEBHOOK_BOT` - Discord webhook URL for bot messages
-  - `WEBHOOK_SEND_TO` - Discord webhook URL for sending results
-- Without these environment variables, the bot cannot start but main.py will run
-- Run basic functionality: `python main.py`
-- Run bot (requires .env setup): `python bot.py` -- will fail without proper tokens
+## Running and Handoff
+
+### Environment Variables
+Recommended `.env` (minimally for remote run):
+```
+DISCORD_BOT_TOKEN=...
+TEST_GUILD_ID=...
+GREENLIST=123,456
+SUNO_API_KEY=...
+WEBHOOK_BOT=https://discord.com/api/webhooks/...
+WEBHOOK_SEND_TO=https://discord.com/api/webhooks/...
+
+# Presence and control
+LOCALHOST=your-local-hostname
+FLASK_SHUTDOWN_TOKEN=strong-token
+
+# Optional alerting (preemption / logs)
+PREEMPTION_ALERT_CHANNEL_ID=...
+PREEMPTION_WEBHOOK=https://discord.com/api/webhooks/...
+BOT_LOGS_CHANNEL_ID=...
+BOT_LOGS_WEBHOOK=https://discord.com/api/webhooks/...
+
+# Control API bind (control service)
+FLASK_BIND=127.0.0.1
+FLASK_PORT=8787
+```
+
+Notes:
+- Presence is set by comparing `socket.gethostname()` with `LOCALHOST` in [`config.get_is_localhost`](../config.py). If equal, the status shows “locally”; otherwise “remotely”.
+- Main runner validates env and network before starting the bot ([main.py](../main.py)).
+
+### Local Run (workstation, for GPU-heavy workflows)
+- Ensure the remote bot is stopped (see “Remote control API” below).
+- Activate venv, then:
+  - `python main.py` (default command “run”)
+- The presence should show “watching locally”.
+
+### Remote VM Run (thin, always-on)
+- Use systemd services:
+  - Install: `sudo server/install_systemd.sh`
+  - Services:
+    - Bot: [server/systemd/strataslims.service](../server/systemd/strataslims.service)
+    - Control API: [server/systemd/strataslims-control.service](../server/systemd/strataslims-control.service)
+- The bot is launched through [server/run_with_update.sh](../server/run_with_update.sh), which:
+  - `git pull` on startup
+  - Installs requirements if changed (best effort with timeouts)
+  - Executes `python main.py run`
+- Optional preemption notify is called on stop via [server/notify_preemption.py](../server/notify_preemption.py).
+
+### Remote Control API (start/stop/restart/status)
+A lightweight Flask server ([flaskserver.py](../flaskserver.py)) runs as a separate service and controls the bot via `systemctl`. It requires `FLASK_SHUTDOWN_TOKEN` if set.
+
+- Status:
+  - `curl -s http://127.0.0.1:8787/status -H "Authorization: Bearer <token>"`
+- Stop remote (before starting local):
+  - `curl -X POST http://127.0.0.1:8787/stopbot -H "Authorization: Bearer <token>"`
+- Start remote (after finishing local):
+  - `curl -X POST http://127.0.0.1:8787/startbot -H "Authorization: Bearer <token>"`
+- Restart:
+  - `curl -X POST http://127.0.0.1:8787/restartbot -H "Authorization: Bearer <token>"`
+
+By default, the control API binds to `127.0.0.1`. Expose it cautiously if you need remote access (firewall + strong token).
+
+### Handoff Pattern
+- Normal operation: remote VM stays online (“watching remotely”).
+- When you need GPU features locally:
+  1. Stop the remote bot via `/stopbot`.
+  2. Start the local bot (`python main.py`) and verify presence (“watching locally”).
+  3. Complete heavy tasks.
+  4. Stop local bot.
+  5. Start the remote bot via `/startbot`.
+- Never run both simultaneously with the same Discord token.
 
 ## Validation
 
 ### Basic Validation Steps
-- ALWAYS run these validation steps after making changes:
-  - `python -m py_compile *.py` -- ensures no syntax errors
-  - `python main.py` -- verifies basic import structure
-  - `flake8 --max-line-length=100 --ignore=E501 <changed_files>` -- check code style of modified files only
+- `python -m py_compile *.py bot/*.py mcp/*.py server/*.py`
+- `python main.py healthcheck` (preflight only)
+- `flake8 --max-line-length=100 --ignore=E501 <changed_files>`
 
-### Manual Testing Scenarios
-- **Limited Testing Available**: Without Discord API tokens and Suno API access, full functionality cannot be tested
-- **Dependency Requirements**: Full import testing requires installing dependencies via pip (discord.py, aiohttp, etc.)
-- **Basic Import Testing with Dependencies**: After successful pip install, verify modules import:
-  - `python -c "import bot, config, sunoapi; print('All imports successful')"` -- requires Discord tokens in .env
-  - `python -c "from config import get_bot_token; print('Config loading works')"` -- tests environment variable loading
-- **Syntax-Only Testing**: When dependencies unavailable due to network issues:
-  - `python -m py_compile *.py` -- validates Python syntax without imports
-  - Focus on code structure validation instead of runtime testing
-- **Code Review Focus**: Since runtime testing is limited, focus on:
-  - Code syntax and structure validation
-  - Import statement correctness
-  - Variable naming and function signatures
-  - Discord.py API usage patterns
+### Manual Testing
+- With dependencies installed:
+  - `python -c "from config import get_bot_token; print('Config OK')"`
+  - `python -c "import bot.run; print('Bot import OK')"` (will attempt to start; prefer using main.py)
+- Syntax-only (no network):
+  - `python -m py_compile *.py bot/*.py mcp/*.py server/*.py`
 
-### Environment Variable Testing
-- Create a minimal `.env` file for testing imports:
-  ```
-  DISCORD_BOT_TOKEN=test_token
-  TEST_GUILD_ID=123456789
-  GREENLIST_USER_IDS=123456789
-  SUNO_TOKEN=test_token
-  WEBHOOK_BOT=https://discord.com/api/webhooks/test
-  WEBHOOK_SEND_TO=https://discord.com/api/webhooks/test
-  ```
-- Test configuration loading: `python -c "from config import get_bot_token; print('Config loading works')"`
-- **Important**: Always remove test .env files before committing to avoid exposing test tokens
+## Key Files and Responsibilities
+- Runner and preflight: [main.py](../main.py)
+- Discord client and command tree: [bot/run.py](../bot/run.py)
+- Music generation and UI flow: [bot/gen_music.py](../bot/gen_music.py)
+- Payload building and validation: [bot/musicparser.py](../bot/musicparser.py)
+- Suno API integration: [bot/sunoapi.py](../bot/sunoapi.py)
+- Audio upload helper: [bot/post_songs.py](../bot/post_songs.py)
+- Control API (systemctl bridge): [flaskserver.py](../flaskserver.py)
+- Systemd units: [server/systemd/strataslims.service](../server/systemd/strataslims.service), [server/systemd/strataslims-control.service](../server/systemd/strataslims-control.service)
+- Auto-update runner: [server/run_with_update.sh](../server/run_with_update.sh)
+- Preemption notification: [server/notify_preemption.py](../server/notify_preemption.py)
+- MCP server and config: [mcp/mcp_server.py](../mcp/mcp_server.py), [mcp/mcp.json](../mcp/mcp.json)
 
-## Common Tasks
+## Dependencies (requirements.txt)
+Core:
+- discord-py==2.6.3, aiohttp==3.12.15, requests==2.32.5
+- flask==3.1.2, werkzeug==3.1.3
+- python-dotenv==1.1.1
+- And supporting libs listed in [requirements.txt](../requirements.txt)
 
-### Repository Structure
-```
-ls -la
-total 88
-drwxr-xr-x 6 runner runner  4096 Sep 10 07:28 .
-drwxr-xr-x 3 runner runner  4096 Sep 10 07:18 ..
-drwxrwxr-x 7 runner runner  4096 Sep 10 07:25 .git
-drwxrwxr-x 2 runner runner  4096 Sep 10 07:26 .github
--rw-rw-r-- 1 runner runner   167 Sep 10 07:19 .gitignore
--rw-rw-r-- 1 runner runner     4 Sep 10 07:19 .python-version
-drwxrwxr-x 5 runner runner  4096 Sep 10 07:26 .venv
--rw-rw-r-- 1 runner runner     0 Sep 10 07:19 README.md
-drwxrwxr-x 2 runner runner  4096 Sep 10 07:27 __pycache__
--rw-rw-r-- 1 runner runner 15012 Sep 10 07:19 bot.py
--rw-rw-r-- 1 runner runner  3477 Sep 10 07:19 config.py
--rw-rw-r-- 1 runner runner    89 Sep 10 07:19 main.py
--rw-rw-r-- 1 runner runner     0 Sep 10 07:19 mock.py
--rw-rw-r-- 1 runner runner  4697 Sep 10 07:19 mockapi.py
--rw-rw-r-- 1 runner runner  3425 Sep 10 07:19 musicparser.py
--rw-rw-r-- 1 runner runner   156 Sep 10 07:19 pyproject.toml
--rw-rw-r-- 1 runner runner   339 Sep 10 07:19 requirements.txt
--rw-rw-r-- 1 runner runner  4070 Sep 10 07:19 sunoapi.py
--rw-rw-r-- 1 runner runner  6986 Sep 10 07:19 sunoresults.py
-```
+Python ≥ 3.9 (tested up to 3.12). Check with `python3 --version`.
 
-**Note**: .venv and __pycache__ directories are created during development and should be in .gitignore
+## Hosting Notes
+- Target: Google Compute Engine e2-micro (2 vCPU, 1 GB RAM), debian-12
+- Keep memory footprint low; avoid heavy processes on VM
+- Use swap if needed; prefer systemd; supervisor config is available as an alternative: [server/strataslims.conf](../server/strataslims.conf)
+- Pip install on low-RAM VMs may need `--no-cache-dir` and extended timeouts
 
-### Key Project Files
-- **bot.py** (319 lines) - Main Discord bot implementation with slash commands and UI components
-- **config.py** (100 lines) - Environment variable management and configuration loading
-- **sunoapi.py** (126 lines) - Integration with Suno AI music generation API
-- **musicparser.py** (100 lines) - Music request parsing and data formatting
-- **sunoresults.py** (196 lines) - Processing and handling of Suno API responses
-- **main.py** (6 lines) - Simple entry point for basic testing
-- **mockapi.py** (130 lines) - Mock API implementations for testing
-- **requirements.txt** - Python dependencies (discord.py, aiohttp, requests, etc.)
-
-### Project Dependencies (requirements.txt)
-```
-aiohappyeyeballs==2.6.1
-aiohttp==3.12.15
-aiosignal==1.4.0
-async-timeout==5.0.1
-attrs==25.3.0
-certifi==2025.8.3
-charset-normalizer==3.4.3
-discord-py==2.6.3
-frozenlist==1.7.0
-idna==3.10
-multidict==6.6.4
-pip==25.2
-propcache==0.3.2
-python-dotenv==1.1.1
-requests==2.32.5
-setuptools==58.1.0
-typing-extensions==4.15.0
-urllib3==2.5.0
-yarl==1.20.1
-```
-
-### Python Version Requirements
-- **Required**: Python 3.9+ (specified in pyproject.toml)
-- **Tested**: Works with Python 3.12
-- Check version: `python3 --version`
-
-## Working with the Bot Code
-
-### Discord Bot Architecture
-- **MyClient**: Main Discord client class with slash command tree
-- **UI Components**: Uses discord.py UI components (buttons, modals, forms)
-- **Slash Commands**: `/generate` command for music generation requests
-- **Interactive Forms**: Multi-step user input collection for music parameters
-
-### Key Code Patterns
-- **Environment Variable Access**: Use functions from `config.py` (get_bot_token(), get_suno_token(), etc.)
-- **API Integration**: Async/await patterns for Suno API calls in `sunoapi.py`
-- **Discord Interactions**: Button handlers and modal forms for user input
-- **Error Handling**: Extensive try/catch blocks for API reliability
-
-### Frequent Modification Areas
-- **bot.py**: Discord command handlers and UI interaction logic
-- **sunoapi.py**: API call implementations and response handling
-- **musicparser.py**: Input validation and payload construction
-- **config.py**: Environment variable management
-
-## Limitations and Notes
-
-### Testing Limitations
-- **No CI/CD**: No GitHub Actions or automated testing currently set up
-- **API Dependencies**: Full functionality requires external API tokens (Discord, Suno)
-- **Network Requirements**: Bot needs internet access for Discord and Suno API calls
-- **Database**: No persistent storage - all data is transient
-
-### Build and Deployment Notes
-- **Hosting Environment**: Google Compute Engine e2-micro (2 vCPUs, 1 GB memory), OS image debian-12-bookworm-v20240611
-- **Cost**: No running cost (fits within current free tier/credits)
-- **Resource Considerations**:
-  - Memory is limited; avoid running additional heavy processes on the instance.
-  - Prefer lightweight process management (e.g., systemd) and enable swap if needed.
-  - Long-running pip installs can exceed memory; use `--no-cache-dir` if necessary.
-
-### Time Expectations
-- **Virtual Environment Creation**: ~3 seconds
-- **Dependency Installation**: 30-60 seconds (can take up to 10 minutes with network issues)
-- **Code Compilation Check**: <5 seconds
-- **Linting**: ~10 seconds for full codebase
-- **NEVER CANCEL**: Always wait for pip installations and dependency resolution to complete
+## Time Expectations
+- venv creation: ~3s
+- Dependencies: 30–60s (up to 10m with network issues)
+- Preflight checks: <5s
+- Lint (changed files): ~10s

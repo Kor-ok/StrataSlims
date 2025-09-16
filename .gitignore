@@ -19,4 +19,5 @@ wheels/
 # IDE files
 .vscode/
 
-
+# Personal Notes
+CHEATSHEET.md
