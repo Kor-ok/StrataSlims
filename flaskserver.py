@@ -40,6 +40,9 @@ from werkzeug.serving import make_server
 
 from config import get_flask_shutdown_token
 
+HOST_DEFAULT = os.environ.get("FLASK_BIND", "127.0.0.1")
+PORT_DEFAULT = int(os.environ.get("FLASK_PORT", "8787"))
+
 # Flask application
 app = Flask("strataslims-aux")
 
@@ -109,7 +112,7 @@ def restartbot():
 
 	return jsonify({"status": "not implemented"}), 501
 
-def start_background_server(host: str = "127.0.0.1", port: int = 8787, *,
+def start_background_server(host: str = HOST_DEFAULT, port: int = PORT_DEFAULT, *,
 							shutdown_callback: Optional[Callable[[], None]] = None,
 							token: Optional[str] = None) -> None:
 	"""Start the Flask server in a background thread.
@@ -168,7 +171,7 @@ def is_running() -> bool:
 
 if __name__ == "__main__":
 	# Manual local run for debugging; Ctrl+C to stop
-	start_background_server()
+	start_background_server(host=HOST_DEFAULT, port=PORT_DEFAULT)
 	try:
 		while True:
 			time.sleep(1)
