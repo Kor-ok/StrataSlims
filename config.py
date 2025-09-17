@@ -4,7 +4,7 @@ import io
 import traceback
 import gc
 
-DEV_MODE = True  # Set to False in Production
+DEV_MODE = False  # Set to False in Production
 
 def _load_env(file_name: str = ".env") -> None:
     base_dir = os.path.dirname(os.path.abspath(__file__))
