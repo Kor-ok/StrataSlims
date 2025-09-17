@@ -302,7 +302,10 @@ class Extras(discord.ui.Modal, title='Music Extras'):
 				discord.SelectOption(label='Female', value='Female'),
 				discord.SelectOption(label='Surprise', value='Surprise Me'),
 			],
-			custom_id='strata_extras_modal:vocal_gender'
+			custom_id='strata_extras_modal:vocal_gender',
+			required=False,
+   			min_values=0,   # allow user to pick none
+            max_values=1
 		)
 	)
 
@@ -349,15 +352,36 @@ class Extras(discord.ui.Modal, title='Music Extras'):
 		self.audio_weight.default = "" \
       							if get_from_infobox(self.__view.info_audio_weight.content) == "-" \
       							else get_from_infobox(self.__view.info_audio_weight.content)
+		
+		assert isinstance(self.vocal_gender.component, discord.ui.Select)
+		# Set the default selected option based on the current infobox content
+		current_value = get_from_infobox(self.__view.info_gender.content)
+		if current_value in {'Male', 'Female', 'Surprise Me'}:
+			self.vocal_gender.component.options[0].default = current_value == 'Male'
+			self.vocal_gender.component.options[1].default = current_value == 'Female'
+			self.vocal_gender.component.options[2].default = current_value == 'Surprise Me'
+		else:
+			pass
 		super().__init__()
 
 	async def on_submit(self, interaction: discord.Interaction):
 		# Update the infobox content with the new values
 		assert isinstance(self.vocal_gender.component, discord.ui.Select)
-		self.__view.info_gender.content = send_to_infobox(
-			str(self.vocal_gender.component.values[0]),
-			"Vocalist Gender:"
-		)
+
+		values = getattr(self.vocal_gender.component, "values", None)
+		selected_gender = values[0] if values and len(values) > 0 else None
+
+		if selected_gender:
+			self.__view.info_gender.content = send_to_infobox(
+				selected_gender,
+				"Vocalist Gender:"
+			)
+		else:
+			# Set to Surprise Me if nothing selected
+			self.__view.info_gender.content = send_to_infobox(
+				"Surprise Me",
+				"Vocalist Gender:"
+			)
 		self.__view.info_negatives.content = send_to_infobox(
 			str(self.neg_tags.value),
 			"Negative Prompt:"

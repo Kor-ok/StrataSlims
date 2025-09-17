@@ -38,6 +38,9 @@ class StrataSlims(discord.Client):
             pass
 
     async def setup_hook(self) -> None:
+        # clear global commands to avoid duplicates
+        if DEV_MODE:
+            self.tree.clear_commands(guild=TEST_GUILD)
         await self.tree.sync(guild=TEST_GUILD)
 
 client = StrataSlims()

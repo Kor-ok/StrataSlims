@@ -11,8 +11,8 @@ WorkingDirectory=/home/korokchatterjee/StrataSlims
 
 # Use the project venv’s Python and run the bot entry point
 
-# ExecStart=/home/korokchatterjee/StrataSlims/.venv/bin/python /home/korokchatterjee/StrataSlims/main.py
-ExecStart=/bin/bash -lc '/home/korokchatterjee/StrataSlims/server/run_with_update.sh'
+ExecStart=/home/korokchatterjee/StrataSlims/.venv/bin/python /home/korokchatterjee/StrataSlims/main.py
+# ExecStart=/bin/bash -lc '/home/korokchatterjee/StrataSlims/server/run_with_update.sh'
 ExecStopPost=/usr/bin/env python3 /home/korokchatterjee/StrataSlims/server/notify_preemption.py
 
 # Ensure stdout/err go to journal
