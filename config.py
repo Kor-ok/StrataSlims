@@ -5,6 +5,7 @@ import traceback
 import gc
 
 DEV_MODE = False  # Set to False in Production
+COMMAND_PREFIX = '§'
 
 def _load_env(file_name: str = ".env") -> None:
     base_dir = os.path.dirname(os.path.abspath(__file__))

@@ -9,13 +9,8 @@ from discord.ext import tasks
 from bot.musicparser import *
 from bot.sunoapi import *
 from bot.post_songs import url_to_file
-from config import DEV_MODE, get_bot_alerts_routes
-
-_dev_mode = DEV_MODE
-
-_bot_alert_routes = get_bot_alerts_routes()
-BOT_LOGS_CHANNEL_ID = _bot_alert_routes.get("BOT_LOGS_CHANNEL_ID", None)
-BOT_LOGS_WEBHOOK = _bot_alert_routes.get("BOT_LOGS_WEBHOOK", None)
+from config import DEV_MODE
+from bot.logging import log_suno_boost, log_suno_generate
 
 HELP_TEXT = 'Helpful Info'
 MUSIC_GEN_THUMBNAIL = 'https://cdn.discordapp.com/attachments/1415112547484438701/1415112547748544635/logo.png'
@@ -64,43 +59,16 @@ class MusicGenButtons(discord.ui.ActionRow):
 			)
 			return
 		style_boost_payload = build_booststyle_payload(self.__view)
-		
-		if _dev_mode:
-			print(f"Generated boost style payload:\n {json.dumps(style_boost_payload, indent=4)}")
-		else:
-			# In production, log the payload to the bot logs channel for auditing
-			if BOT_LOGS_CHANNEL_ID and BOT_LOGS_WEBHOOK:
-				try:
-					log_channel = interaction.client.get_channel(BOT_LOGS_CHANNEL_ID)
-					if log_channel is None:
-						log_channel = await interaction.client.fetch_channel(BOT_LOGS_CHANNEL_ID)
-					if isinstance(log_channel, discord.TextChannel):
-						payload_str = json.dumps(style_boost_payload, indent=4)
-						if len(payload_str) > 1900:
-							payload_str = payload_str[:1900] + "\n... (truncated)"
-						await log_channel.send(
-							content=f"New style boost request from {interaction.user.mention}:\n```json\n{payload_str}\n```"
-						)
-				except Exception as e:
-					print(f"Failed to log style boost request: {e}")
-					traceback.print_exc()		
   
 		await toggle_button_states(interaction, self.__view, is_generating=True)
   
-		response = await generate_boosted_style(style_boost_payload) # = Uncomment FOR MOCK TESTING =
-		# response = {				
-		#     "result": "Opening with a crisp snare drum cadence, the song features \
-      	# 				a lone fife carrying a soaring Celtic-inspired melody over a \
-        # 				stately march tempo. The absurdly patriotic male vocals \
-        # 				command with bold phrasing, rising above the sparse arrangement. \
-        # 				Dynamic shifts emphasize unison hits, ending with a stirring flute flourish.",
-		#     "creditsRemaining": 864.8
-		# 	}
+		response, log = await generate_boosted_style(style_boost_payload)
 		if 'error' in response:
 			await toggle_button_states(interaction, self.__view, is_generating=False)
 			await interaction.followup.send(
 					f"Error boosting style: {response['error']['msg']}", 
 					ephemeral=True)
+			await log_suno_boost(client=interaction.client, interaction=interaction, payload=f"Suno Boost Style Error: {log}", is_success=False)
 			return
 		generated_boosted_style = response['result']
 		remaining_credits = response['creditsRemaining']
@@ -108,6 +76,7 @@ class MusicGenButtons(discord.ui.ActionRow):
 		self.__view.info_boosted_style.content = send_to_infobox(generated_boosted_style, "Boosted Style:")
 		await toggle_button_states(interaction, self.__view, is_generating=False)
 		await interaction.edit_original_response(view=self.__view)
+		await log_suno_boost(client=interaction.client, interaction=interaction, payload=f"Suno Boost Style Success: {log}")
 	# endregion
 	# region EXTRAS BUTTON
  	# =================================================== EXTRAS BUTTON ========
@@ -167,46 +136,20 @@ class MusicGenButtons(discord.ui.ActionRow):
 				return
 		# Build the payload from the view state
 		payload = build_music_payload(self.__view)
-  
-		if _dev_mode:
-			print(f"Generated music gen payload:\n {json.dumps(payload, indent=4)}")
-		else:
-			# In production, log the payload to the bot logs channel for auditing
-			if BOT_LOGS_CHANNEL_ID and BOT_LOGS_WEBHOOK:
-				try:
-					log_channel = interaction.client.get_channel(BOT_LOGS_CHANNEL_ID)
-					if log_channel is None:
-						log_channel = await interaction.client.fetch_channel(BOT_LOGS_CHANNEL_ID)
-					if isinstance(log_channel, discord.TextChannel):
-						payload_str = json.dumps(payload, indent=4)
-						if len(payload_str) > 1900:
-							payload_str = payload_str[:1900] + "\n... (truncated)"
-						await log_channel.send(
-							content=f"New music generation request from {interaction.user.mention}:\n```json\n{payload_str}\n```",
-							allowed_mentions=discord.AllowedMentions.none(),
-							mention_author=False,
-       						silent=True
-						)
-				except Exception as e:
-					print(f"Failed to log music generation request: {e}")
-					traceback.print_exc()
 		
 		await toggle_button_states(interaction, self.__view, is_generating=True)
 		
-		response = await generate_music(payload) # ===================== Uncomment FOR MOCK TESTING
-		# response = {
-		# 		"code": 200,
-		# 		"msg": "success",
-		# 		"data": {
-		# 			"taskId": "7c77b4bc3cc8edff4010577a9c6ec74b"
-		# 		}
-		# 	}
+		response, log_entry = await generate_music(payload)
 		if 'error' in response:
 			await toggle_button_states(interaction, self.__view, is_generating=False)
 			await interaction.followup.send(
 					f"Error starting music generation: {response['error']['msg']}",
 					ephemeral=True)
+			await log_suno_generate(client=interaction.client, interaction=interaction, payload=f"Suno Generate Music Error: {log_entry}", is_success=False)
 			return
+		else:
+			await log_suno_generate(client=interaction.client, interaction=interaction, payload=f"Suno Generate Music Start: {log_entry}", is_success=True)
+
 		task_id = response['data']['taskId']
 		if isinstance(channel, discord.TextChannel):
 			await channel.send(
@@ -219,12 +162,12 @@ class MusicGenButtons(discord.ui.ActionRow):
 		try:
 			_check_music_gen_results.start(interaction, self.__view, task_id, channel)
 		except Exception as e:
-			print(f"Error starting music generation task: {e}")
-			traceback.print_exc()
+			# print(f"Error starting music generation task: {e}")
+			# traceback.print_exc()
 			await toggle_button_states(interaction, self.__view, is_generating=False)
 			
 			if isinstance(channel, discord.TextChannel):
-				await channel.send(content="An error occurred while processing your request.")
+				await channel.send(content="A bot related error (not Suno) occurred while processing your request.")
 	# endregion
             
 class Details(discord.ui.Modal, title='Music Details'):
@@ -562,53 +505,76 @@ async def _check_music_gen_results(interaction: discord.Interaction,
                                    view: 'MusicGen', 
                                    task_id: str,
                                    channel: discord.TextChannel) -> None:
-	task_results = await get_task_results(task_id)
+	task_results, log_entry = await get_task_results(task_id)
+	# Handle immediate error structure
 	if 'error' in task_results:
 		try:
-			await interaction.followup.send(f"Error retrieving task results: {task_results['error']['msg']}", ephemeral=True)
+			await interaction.followup.send(
+				f"Error retrieving task results: {task_results['error'].get('msg', 'Unknown error')}",
+				ephemeral=True
+			)
 		except Exception:
 			pass
+		await log_suno_generate(
+			client=interaction.client,
+			interaction=interaction,
+			payload=json.dumps({"event": "task_results_error", "log": log_entry, "api_response": task_results}, indent=2),
+			is_success=False
+		)
 		await toggle_button_states(interaction, view, is_generating=False)
-  
 		_check_music_gen_results.stop()
 		return
+
 	status = (task_results.get('data', {}).get('status') or '').strip().upper()
-	if _dev_mode:
+	log_entry['status'] = status  # keep updated
+
+	if DEV_MODE:
 		print(f'Status: {status}')
 	else:
-		# In production, log the whole task result to the bot logs channel for auditing
-		if BOT_LOGS_CHANNEL_ID and BOT_LOGS_WEBHOOK and status in {'SUCCESS'}:
-			try:
-				log_channel = interaction.client.get_channel(BOT_LOGS_CHANNEL_ID)
-				if log_channel is None:
-					log_channel = await interaction.client.fetch_channel(BOT_LOGS_CHANNEL_ID)
-				if isinstance(log_channel, discord.TextChannel):
-					task_results_str = json.dumps(task_results, indent=4)
-					if len(task_results_str) > 1900:
-						task_results_str = task_results_str[:1900] + "\n... (truncated)"
-					await log_channel.send(
-						content=f"Music generation task update for {interaction.user.mention} (Task ID: `{task_id}`):\n```json\n{task_results_str}\n```"
-					)
-			except Exception as e:
-				print(f"Failed to log music generation task update: {e}")
-				traceback.print_exc()
+		if status == 'SUCCESS':
+			await log_suno_generate(
+				client=interaction.client,
+				interaction=interaction,
+				payload=json.dumps({
+					"event": "task_update",
+					"taskId": task_id,
+					"user": str(interaction.user),
+					"results": task_results
+				}, indent=2),
+				is_success=True
+			)
 	if status in {'SUCCESS'}:
 		# Stop the loop
 		_check_music_gen_results.stop()
 		await toggle_button_states(interaction, view, is_generating=False)
-		results = {
-		"task_id": task_results["data"]["taskId"],
-		"song_title_1": task_results["data"]["response"]["sunoData"][0]["title"],
-		"song_title_2": task_results["data"]["response"]["sunoData"][1]["title"],
-		"song_image_url_1": task_results["data"]["response"]["sunoData"][0]["imageUrl"],
-		"song_image_url_2": task_results["data"]["response"]["sunoData"][1]["imageUrl"],
-		"song_audio_url_1": task_results["data"]["response"]["sunoData"][0]["audioUrl"],
-		"song_audio_url_2": task_results["data"]["response"]["sunoData"][1]["audioUrl"]
-		}
+		try:
+			results = {
+				"task_id": task_results["data"]["taskId"],
+				"song_title_1": task_results["data"]["response"]["sunoData"][0]["title"],
+				"song_title_2": task_results["data"]["response"]["sunoData"][1]["title"],
+				"song_image_url_1": task_results["data"]["response"]["sunoData"][0]["imageUrl"],
+				"song_image_url_2": task_results["data"]["response"]["sunoData"][1]["imageUrl"],
+				"song_audio_url_1": task_results["data"]["response"]["sunoData"][0]["audioUrl"],
+				"song_audio_url_2": task_results["data"]["response"]["sunoData"][1]["audioUrl"]
+			}
+		except Exception as _extract_exc:
+			# If extraction fails, treat as failure
+			await log_suno_generate(
+				client=interaction.client,
+				interaction=interaction,
+				payload=json.dumps({
+					"event": "result_parse_failure",
+					"log": log_entry,
+					"exception": str(_extract_exc)
+				}, indent=2),
+				is_success=False
+			)
+			return
 		await post_music_results(channel, results, interaction)
+		return
 
- 	# Else if not pending or first success, something went wrong
-	elif status not in ["PENDING", "FIRST_SUCCESS", "TEXT_SUCCESS"]:
+ 	# Treat unexpected terminal states as failure (exclude normal pending states)
+	if status not in ["PENDING", "FIRST_SUCCESS", "TEXT_SUCCESS"]:
 		try:
 			await interaction.followup.send(f"Music generation failed with status: {status}", ephemeral=True)
 		except Exception:
@@ -617,21 +583,35 @@ async def _check_music_gen_results(interaction: discord.Interaction,
 			await toggle_button_states(interaction, view, is_generating=False)
 		except Exception:
 			pass
-
+		await log_suno_generate(
+			client=interaction.client,
+			interaction=interaction,
+			payload=json.dumps({"event": "generation_failed", "log": log_entry, "status": status}, indent=2),
+			is_success=False
+		)
 		_check_music_gen_results.stop()
 		return
 
-	# Otherwise, still pending; continue the loop
- 	# If we time out, then tell the user what the task ID was so they can check manually
+	# Timeout handling (last iteration)
 	if _check_music_gen_results.current_loop == 59:
 		try:
-			await interaction.followup.send(f"Music generation is taking longer than expected. \
-       										You can check the status of your task with ID `{task_id}` later.",
-                 							ephemeral=False)
+			await interaction.followup.send(
+				"Music generation is taking longer than expected. You can check the status "
+				f"of your task with ID `{task_id}` later.",
+				ephemeral=False
+			)
 		except Exception:
 			pass
-		await toggle_button_states(interaction, view, is_generating=False)
-		
+		try:
+			await toggle_button_states(interaction, view, is_generating=False)
+		except Exception:
+			pass
+		await log_suno_generate(
+			client=interaction.client,
+			interaction=interaction,
+			payload=json.dumps({"event": "generation_timeout", "log": log_entry}, indent=2),
+			is_success=False
+		)
 		_check_music_gen_results.stop()
 		return
 
